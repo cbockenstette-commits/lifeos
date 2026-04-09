@@ -29,11 +29,35 @@ A personal life management app — Tiago Forte's **PARA** method (Projects / Are
 
 That's it. `pnpm` is installed automatically via `corepack` in the setup steps below.
 
-## First-time setup
+## Quick start
+
+Clone the repo, then run the setup script. It checks prerequisites, creates `.env`, enables pnpm, and bootstraps the database — all in one command.
+
+**Linux / macOS:**
+
+```bash
+git clone git@github.com:cbockenstette-commits/lifeos.git lifeos
+cd lifeos
+bash scripts/setup.sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+git clone git@github.com:cbockenstette-commits/lifeos.git lifeos
+cd lifeos
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+```
+
+The script will tell you if anything is missing and how to install it. Once it finishes, run `pnpm dev` to start the dev servers.
+
+## Manual setup
+
+> If you ran `setup.sh` or `setup.ps1` above, skip this section.
 
 ```bash
 # 1. Clone the repo
-git clone <your-repo-url> lifeos
+git clone git@github.com:cbockenstette-commits/lifeos.git lifeos
 cd lifeos
 
 # 2. Enable pnpm via corepack (no sudo, no global install)
@@ -110,6 +134,9 @@ lifeos/
 │           └── tests/      # React Testing Library smoke tests
 ├── packages/
 │   └── shared/             # Zod schemas + enums + pure date helpers
+├── scripts/
+│   ├── setup.sh             # Quick-start setup for Linux/macOS
+│   └── setup.ps1            # Quick-start setup for Windows
 ├── docker-compose.yml      # postgres:16-alpine
 ├── pnpm-workspace.yaml
 ├── package.json            # Root scripts (dev, test, typecheck, bootstrap)
