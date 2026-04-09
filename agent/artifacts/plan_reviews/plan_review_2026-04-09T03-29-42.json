@@ -1,0 +1,42 @@
+{
+  "artifact_type": "plan_review",
+  "created_at": "2026-04-09T03:29:42.197558+00:00",
+  "transport": "codex-cli",
+  "script": "gpt_plan.py",
+  "input_files": [
+    "current_goal.md",
+    "current_scope.md",
+    "next_task.md",
+    "open_risks.md",
+    "approval_gates.md"
+  ],
+  "dry_run": false,
+  "response": {
+    "status": "approve",
+    "summary": "P6 Dashboard is the correct next phase after P5 because it converts the now-working sprint/task flows into the homepage visibility layer that addresses the core forgetting/problem-surfacing goal. The task is well-bounded around one backend aggregator, one shared schema, one query hook, and six widgets, with clear mutation invalidation rules already established from prior phases. I do not see a blocker to proceeding, but the implementation should lock down the exact semantics of a few widgets before coding to avoid silent mismatch between API and UI.",
+    "key_risks": [
+      "Timezone-sensitive widgets can drift if `dueToday` and `currentSprint` calculations do not consistently use the user's timezone and shared week helpers.",
+      "Dashboard invalidation can regress if any task/sprint/resource mutation path added in prior phases bypasses the canonical `invalidateDashboard()` helper.",
+      "`weeklyFocusByArea` may become semantically inconsistent unless area resolution is defined explicitly for both direct task.area_id and transitive task.project.area_id cases.",
+      "The dashboard route may accidentally create or mutate sprint state if it reuses find-or-create logic instead of a read-only current-sprint lookup."
+    ],
+    "blocking_issues": [],
+    "confidence": "high",
+    "recommended_next_step": "Proceed with P6, but first pin the exact API semantics for `weeklyFocusByArea`, `recentResources` ordering, and whether `currentSprint` on the dashboard is read-only or find-or-create.",
+    "acceptance_checks": [
+      "`GET /api/dashboard` returns one response matching `DashboardSchema` with all 6 sections present and arrays defaulting to empty arrays, not null.",
+      "The dashboard page issues exactly one `/api/dashboard` request on initial mount through the Vite app.",
+      "`dueToday` and `currentSprint` tests pass for the user's timezone using the shared sprint/week helpers rather than ad hoc date math.",
+      "A seeded integration test proves `weeklyFocusByArea` counts tasks under both direct area assignment and project-derived area assignment correctly.",
+      "A mutation to task, sprint, or resource data causes the dashboard query to invalidate and refetch through the shared helper.",
+      "Frontend RTL test renders all 6 widgets from a mocked dashboard payload without per-widget network calls."
+    ],
+    "open_questions": [
+      "Should the dashboard's `currentSprint` section create the current sprint if none exists yet, or report `null`/empty until the user starts one explicitly?",
+      "What is the canonical sort for `recentResources`: `created_at DESC`, `updated_at DESC`, or mixed recency?",
+      "For `weeklyFocusByArea`, should completed tasks in the current sprint count toward focus, or only active/incomplete tasks?"
+    ],
+    "review_tier_confirmation": "C",
+    "approve_or_revise": "approve"
+  }
+}

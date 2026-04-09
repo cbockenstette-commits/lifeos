@@ -1,37 +1,28 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { z } from 'zod';
-
-// P2 stub. The real aggregator lands in P6. Returning an empty shape now
-// so the frontend can wire up the query key in P3 without a 404.
-const DashboardStubSchema = z.object({
-  currentSprint: z.null(),
-  inProgressTasks: z.array(z.unknown()),
-  dueToday: z.array(z.unknown()),
-  staleTasks: z.array(z.unknown()),
-  weeklyFocusByArea: z.array(z.unknown()),
-  recentResources: z.array(z.unknown()),
-});
+import { DashboardSchema } from '@lifeos/shared';
+import { buildDashboard } from '../services/dashboard.js';
 
 const dashboardRoutes: FastifyPluginAsync = async (app) => {
   const f = app.withTypeProvider<ZodTypeProvider>();
 
+  // GET /api/dashboard — single aggregator endpoint (ADR-4).
+  // Uses the current user's stored timezone to resolve "today" and
+  // "this week" bounds. Every section returns an empty array (never
+  // null) so the frontend renders uniformly.
   f.get(
     '/',
     {
       schema: {
-        response: { 200: DashboardStubSchema },
+        response: { 200: DashboardSchema },
       },
     },
-    async () => {
-      return {
-        currentSprint: null,
-        inProgressTasks: [],
-        dueToday: [],
-        staleTasks: [],
-        weeklyFocusByArea: [],
-        recentResources: [],
-      };
+    async (req) => {
+      const user = await app.prisma.user.findUniqueOrThrow({
+        where: { id: req.user.id },
+        select: { timezone: true },
+      });
+      return buildDashboard(app.prisma, req.user.id, user.timezone);
     },
   );
 };

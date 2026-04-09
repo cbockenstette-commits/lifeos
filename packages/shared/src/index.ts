@@ -21,3 +21,4 @@ export * from './schemas/resource.js';
 export * from './schemas/sprint.js';
 export * from './schemas/tag.js';
 export * from './schemas/entity-link.js';
+export * from './schemas/dashboard.js';

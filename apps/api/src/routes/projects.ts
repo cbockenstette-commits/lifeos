@@ -10,6 +10,7 @@ import {
 } from '@lifeos/shared';
 import { applyArchivedFilter } from '../services/archive.js';
 import { computePriorityScore } from '../lib/prioritize.js';
+import { toDate } from '../lib/coerce.js';
 
 void computePriorityScore; // reserved for a future "recompute scores" endpoint
 
@@ -70,7 +71,11 @@ const projectsRoutes: FastifyPluginAsync = async (app) => {
     },
     async (req, reply) => {
       const project = await app.prisma.project.create({
-        data: { ...req.body, user_id: req.user.id },
+        data: {
+          ...req.body,
+          target_date: toDate(req.body.target_date),
+          user_id: req.user.id,
+        },
       });
       return reply.code(201).send(project);
     },
@@ -90,9 +95,16 @@ const projectsRoutes: FastifyPluginAsync = async (app) => {
         where: { id: req.params.id, user_id: req.user.id },
         select: { id: true },
       });
+      const data: Record<string, unknown> = { ...req.body };
+      if (req.body.target_date !== undefined) {
+        data.target_date = toDate(req.body.target_date);
+      }
+      if (req.body.completed_at !== undefined) {
+        data.completed_at = toDate(req.body.completed_at);
+      }
       return app.prisma.project.update({
         where: { id: req.params.id },
-        data: req.body,
+        data,
       });
     },
   );

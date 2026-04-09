@@ -12,6 +12,7 @@ import {
 } from '@lifeos/shared';
 import { applyArchivedFilter } from '../services/archive.js';
 import { computePriorityScore } from '../lib/prioritize.js';
+import { toDate } from '../lib/coerce.js';
 
 const tasksRoutes: FastifyPluginAsync = async (app) => {
   const f = app.withTypeProvider<ZodTypeProvider>();
@@ -78,6 +79,7 @@ const tasksRoutes: FastifyPluginAsync = async (app) => {
       const task = await app.prisma.task.create({
         data: {
           ...req.body,
+          due_date: toDate(req.body.due_date),
           urgency,
           importance,
           priority_score,
@@ -119,7 +121,13 @@ const tasksRoutes: FastifyPluginAsync = async (app) => {
       // unless the caller explicitly overrides it.
       const nextUrgency = req.body.urgency ?? current.urgency;
       const nextImportance = req.body.importance ?? current.importance;
-      const data: typeof req.body = { ...req.body };
+      const data: Record<string, unknown> = { ...req.body };
+      if (req.body.due_date !== undefined) {
+        data.due_date = toDate(req.body.due_date);
+      }
+      if (req.body.completed_at !== undefined) {
+        data.completed_at = toDate(req.body.completed_at);
+      }
       if (
         data.priority_score === undefined &&
         (req.body.urgency !== undefined || req.body.importance !== undefined)
