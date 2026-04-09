@@ -1,0 +1,42 @@
+{
+  "artifact_type": "plan_review",
+  "created_at": "2026-04-09T03:17:50.094086+00:00",
+  "transport": "codex-cli",
+  "script": "gpt_plan.py",
+  "input_files": [
+    "current_goal.md",
+    "current_scope.md",
+    "next_task.md",
+    "open_risks.md",
+    "approval_gates.md"
+  ],
+  "dry_run": false,
+  "response": {
+    "status": "approve",
+    "summary": "The proposed next task, P6 Dashboard, is correctly prioritized after P5 because it turns the completed sprint and task flows into the attention-surfacing homepage the MVP explicitly needs. Scope is bounded, aligned with the locked ADRs, and the API/UI split is coherent: one `/api/dashboard` aggregator, one shared schema, one query key, and explicit invalidation hooks. The main execution risks are known and already anticipated, and none are severe enough to justify blocking progression.",
+    "key_risks": [
+      "Dashboard freshness depends on every task/sprint/resource mutation continuing to call `invalidateDashboard()` consistently.",
+      "`due today` and `current sprint` widgets can drift at timezone boundaries if the aggregator does not use the same TZ-aware date helpers as sprint logic.",
+      "The single-endpoint contract can regress into shape inconsistency if empty widgets ever return `null` instead of empty arrays.",
+      "The `exactly one /api/dashboard request` frontend criterion can be accidentally violated by duplicate mounts or parallel hooks."
+    ],
+    "blocking_issues": [],
+    "confidence": "high",
+    "recommended_next_step": "Proceed with P6 by implementing the shared `DashboardSchema`, then the API aggregator service/route, then the single-query frontend hook and page, and finish with integration plus RTL verification.",
+    "acceptance_checks": [
+      "`GET /api/dashboard` returns a document matching `DashboardSchema` with all 6 sections present and arrays empty rather than null when no data exists.",
+      "The dashboard service computes `dueToday`, `weeklyFocusByArea`, and `currentSprint` using the same timezone-aware date rules already established for sprint handling.",
+      "Dashboard-affecting mutations continue to invalidate the `['dashboard']` query via the shared helper.",
+      "The dashboard page issues exactly one `/api/dashboard` request on mount under normal render conditions.",
+      "Backend integration tests verify seeded tasks/resources/sprint data appear in the correct widgets and counts.",
+      "Frontend RTL test verifies all 6 widgets render correctly from a mocked dashboard payload."
+    ],
+    "open_questions": [
+      "Should `currentSprintSummary` include only active sprints, or also a planned current-week sprint if one exists but has not been activated yet?",
+      "For `recentResources`, is ordering strictly `created_at DESC`, or should updated resources also count as recent?",
+      "Should `staleTasks` exclude backlog items, or only exclude `done` and archived tasks as currently specified?"
+    ],
+    "review_tier_confirmation": "C",
+    "approve_or_revise": "approve"
+  }
+}

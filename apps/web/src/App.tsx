@@ -10,6 +10,8 @@ import TaskDetailPage from './pages/task-detail-page.js';
 import ResourcesPage from './pages/resources-page.js';
 import ResourceDetailPage from './pages/resource-detail-page.js';
 import SprintsPage from './pages/sprints-page.js';
+import SprintDetailPage from './pages/sprint-detail-page.js';
+import SprintPlanningPage from './pages/sprint-planning-page.js';
 import TagsPage from './pages/tags-page.js';
 import NotFoundPage from './pages/not-found-page.js';
 
@@ -27,6 +29,8 @@ export default function App(): JSX.Element {
         <Route path="resources" element={<ResourcesPage />} />
         <Route path="resources/:id" element={<ResourceDetailPage />} />
         <Route path="sprints" element={<SprintsPage />} />
+        <Route path="sprints/:id" element={<SprintDetailPage />} />
+        <Route path="sprints/:id/plan" element={<SprintPlanningPage />} />
         <Route path="tags" element={<TagsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

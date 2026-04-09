@@ -16,8 +16,7 @@ const mockFetch = vi.fn();
 
 beforeEach(() => {
   mockFetch.mockReset();
-  // @ts-expect-error — vitest jsdom provides global fetch but we override
-  global.fetch = mockFetch;
+  global.fetch = mockFetch as unknown as typeof fetch;
 });
 
 function renderPage() {
