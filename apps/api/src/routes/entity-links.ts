@@ -5,11 +5,15 @@ import {
   EntityLinkSchema,
   EntityLinkCreateSchema,
   EntityTypeSchema,
+  HydratedLinksSchema,
   UuidSchema,
   type EntityLink,
+  type EntityType,
+  type HydratedEntity,
   type RelationType,
 } from '@lifeos/shared';
 import { assertEntityExists } from '../services/entity-links.js';
+import { hydrateEntities } from '../services/hydrate.js';
 
 // Prisma stores relation_type as string (whitelisted via raw SQL CHECK).
 // Coerce the returned row to the stricter Zod response type. The DB CHECK
@@ -71,6 +75,98 @@ const entityLinksRoutes: FastifyPluginAsync = async (app) => {
         orderBy: { created_at: 'desc' },
       });
       return rows.map(toEntityLink);
+    },
+  );
+
+  // GET /api/entity-links/hydrated?entity_type=X&entity_id=Y
+  // Returns { outgoing, incoming } where each edge has the "other end"
+  // entity hydrated. Default filter: exclude archived. Used by the
+  // backlinks panel on every detail page.
+  f.get(
+    '/hydrated',
+    {
+      schema: {
+        querystring: z.object({
+          entity_type: EntityTypeSchema,
+          entity_id: UuidSchema,
+          includeArchived: z
+            .union([z.literal('true'), z.literal('false'), z.boolean()])
+            .optional()
+            .transform((v) => v === true || v === 'true'),
+        }),
+        response: { 200: HydratedLinksSchema },
+      },
+    },
+    async (req) => {
+      const { entity_type, entity_id, includeArchived } = req.query;
+
+      const [outgoingRows, incomingRows] = await Promise.all([
+        app.prisma.entityLink.findMany({
+          where: {
+            user_id: req.user.id,
+            source_type: entity_type,
+            source_id: entity_id,
+          },
+          orderBy: { created_at: 'desc' },
+        }),
+        app.prisma.entityLink.findMany({
+          where: {
+            user_id: req.user.id,
+            target_type: entity_type,
+            target_id: entity_id,
+          },
+          orderBy: { created_at: 'desc' },
+        }),
+      ]);
+
+      const refsToFetch = [
+        ...outgoingRows.map((l) => ({
+          type: l.target_type as EntityType,
+          id: l.target_id,
+        })),
+        ...incomingRows.map((l) => ({
+          type: l.source_type as EntityType,
+          id: l.source_id,
+        })),
+      ];
+      const hydrated = await hydrateEntities(
+        app.prisma,
+        req.user.id,
+        refsToFetch,
+        { includeArchived },
+      );
+      // Index by composite key so lookup is O(1).
+      const hydratedMap = new Map<string, HydratedEntity>(
+        hydrated.map((h) => [`${h.type}:${h.id}`, h]),
+      );
+
+      const outgoing = outgoingRows
+        .map((l) => {
+          const other = hydratedMap.get(`${l.target_type}:${l.target_id}`);
+          return other
+            ? {
+                link_id: l.id,
+                relation_type: l.relation_type as RelationType,
+                other,
+              }
+            : null;
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+
+      const incoming = incomingRows
+        .map((l) => {
+          const other = hydratedMap.get(`${l.source_type}:${l.source_id}`);
+          return other
+            ? {
+                link_id: l.id,
+                relation_type: l.relation_type as RelationType,
+                other,
+              }
+            : null;
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+
+      return { outgoing, incoming };
     },
   );
 

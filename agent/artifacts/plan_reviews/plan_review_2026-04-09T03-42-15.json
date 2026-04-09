@@ -1,0 +1,44 @@
+{
+  "artifact_type": "plan_review",
+  "created_at": "2026-04-09T03:42:15.073705+00:00",
+  "transport": "codex-cli",
+  "script": "gpt_plan.py",
+  "input_files": [
+    "current_goal.md",
+    "current_scope.md",
+    "next_task.md",
+    "open_risks.md",
+    "approval_gates.md"
+  ],
+  "dry_run": false,
+  "response": {
+    "status": "approve",
+    "summary": "The proposed P8 task is correctly prioritized and fits the stated v1 goal: the remaining work is polish, documentation, and resilience around features already delivered in P0-P7. Scope is well-bounded by explicit acceptance criteria and non-goals, and the main residual risks are execution discipline risks rather than architectural blockers.",
+    "key_risks": [
+      "Polish work can sprawl into incidental feature work unless the phase stays pinned to the listed acceptance criteria.",
+      "ARCHITECTURE.md may drift into vague prose unless it includes concrete recipes for raw SQL migration carry-forward, add-entity touchpoints, and JWT hook replacement.",
+      "Root `pnpm` convenience scripts can fail portability expectations if concurrent process orchestration and workspace targeting are not verified on a fresh clone.",
+      "Empty states, loading skeletons, and the error boundary can be added inconsistently across pages if there is no explicit page-by-page checklist."
+    ],
+    "blocking_issues": [],
+    "confidence": "high",
+    "recommended_next_step": "Proceed with P8 by implementing the root scripts and architecture/readme docs first, then finish UI polish items and verify against the 17-step demo script.",
+    "acceptance_checks": [
+      "`pnpm dev` starts both API and web from the repo root and the app is reachable at `http://127.0.0.1:5173`.",
+      "`pnpm test` exits 0 across all workspaces.",
+      "`pnpm typecheck` exits 0 across all workspaces.",
+      "`README.md` reproduces first-run local setup from fresh clone without missing steps.",
+      "`ARCHITECTURE.md` includes an ER diagram, polymorphism trade-off, archive-only lifecycle contract, schema evolution recipe, add-entity recipe, and JWT bolt-on recipe.",
+      "Every list/detail surface with zero data shows an intentional empty state rather than a blank region or broken layout.",
+      "Dashboard loading states render skeletons and uncaught render failures are contained by a layout-level error boundary.",
+      "The full 17-step v1 demo script succeeds without DB inspection or code changes."
+    ],
+    "open_questions": [
+      "Should the P8 verification explicitly include the DST boundary unit tests called out in the phase breakdown, or are those already complete elsewhere?",
+      "Should the architecture doc include a canonical raw SQL block verbatim for future migrations, or only the step-by-step recipe and checklist?",
+      "Is `pnpm dev` expected to use a specific process runner such as `concurrently`, or is any cross-workspace root script approach acceptable as long as the acceptance criteria pass?"
+    ],
+    "review_tier_confirmation": "C",
+    "approve_or_revise": "approve"
+  }
+}

@@ -5,6 +5,8 @@ import { Button } from '../components/ui/button.js';
 import { Modal } from '../components/ui/modal.js';
 import { CenteredSpinner } from '../components/ui/spinner.js';
 import { ProjectForm } from '../components/forms/project-form.js';
+import { TagPicker } from '../components/tags/tag-picker.js';
+import { BacklinksPanel } from '../components/links/backlinks-panel.js';
 import {
   useProject,
   useUpdateProject,
@@ -120,6 +122,15 @@ export default function ProjectDetailPage(): JSX.Element {
             </div>
           )}
         </div>
+        <div>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Tags
+          </h3>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <TagPicker entity_type="project" entity_id={p.id} />
+          </div>
+        </div>
+        <BacklinksPanel entity_type="project" entity_id={p.id} />
       </div>
       <Modal
         open={editing}

@@ -7,9 +7,13 @@ import {
   TagUpdateSchema,
   TagAttachSchema,
   EntityTagSchema,
+  TagEntitiesSchema,
   UuidSchema,
+  type EntityType,
+  type HydratedEntity,
 } from '@lifeos/shared';
 import { assertEntityExists } from '../services/entity-links.js';
+import { hydrateEntities } from '../services/hydrate.js';
 
 const tagsRoutes: FastifyPluginAsync = async (app) => {
   const f = app.withTypeProvider<ZodTypeProvider>();
@@ -103,6 +107,52 @@ const tagsRoutes: FastifyPluginAsync = async (app) => {
   );
 
   // POST /api/tags/:id/attach — attach a tag to a polymorphic entity.
+  // GET /api/tags/:id/entities — all entities tagged with this tag,
+  // hydrated and grouped by type. Used by the tag detail page.
+  f.get(
+    '/:id/entities',
+    {
+      schema: {
+        params: z.object({ id: UuidSchema }),
+        querystring: z.object({
+          includeArchived: z
+            .union([z.literal('true'), z.literal('false'), z.boolean()])
+            .optional()
+            .transform((v) => v === true || v === 'true'),
+        }),
+        response: { 200: TagEntitiesSchema },
+      },
+    },
+    async (req) => {
+      await app.prisma.tag.findFirstOrThrow({
+        where: { id: req.params.id, user_id: req.user.id },
+        select: { id: true },
+      });
+      const rows = await app.prisma.entityTag.findMany({
+        where: { tag_id: req.params.id },
+        select: { entity_type: true, entity_id: true },
+      });
+      const refs = rows.map((r) => ({
+        type: r.entity_type as EntityType,
+        id: r.entity_id,
+      }));
+      const hydrated = await hydrateEntities(
+        app.prisma,
+        req.user.id,
+        refs,
+        { includeArchived: req.query.includeArchived },
+      );
+      const grouped: Record<EntityType, HydratedEntity[]> = {
+        area: [],
+        project: [],
+        task: [],
+        resource: [],
+      };
+      for (const h of hydrated) grouped[h.type].push(h);
+      return grouped;
+    },
+  );
+
   f.post(
     '/:id/attach',
     {

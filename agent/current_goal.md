@@ -2,56 +2,76 @@
 
 Build a personal life-management web app at `~/Documents/lifeos/` combining Tiago Forte's PARA method with Scrum-style weekly sprints.
 
-**Phase:** P6 Dashboard — **COMPLETE**, Codex tier C review APPROVED.
-**Next:** P7 Tags + References (polymorphic tag CRUD, tag detail page grouped by type, entity-link picker modal, backlinks panel on every detail page, integrity test for polymorphic FKs).
+**Phase:** P7 Tags + References — **COMPLETE**, awaiting Codex tier C phase-end review.
+**Next:** P8 Polish (README, ARCHITECTURE.md with ER diagram + polymorphism trade-off + schema evolution recipe + add-entity recipe + JWT bolt-on recipe, empty-state polish, loading skeletons, error boundary, root pnpm scripts, v1 done).
 
-## P6 completion evidence
+## P7 completion evidence
 
-### Shared schema
-- `packages/shared/src/schemas/dashboard.ts` — `DashboardSchema` + `AreaFocusSchema`. Every widget field has an explicit shape; empty widgets return `[]`, not `null`.
+### Backend — polymorphic hydrator
+- `apps/api/src/services/hydrate.ts` — `hydrateEntities(prisma, userId, refs, options)`:
+  - Groups refs by type
+  - Fires ONE `findMany({ where: { id: { in: [...] } } })` per distinct type
+  - Returns compact display cards: `{ type, id, title, archived_at, secondary, color }`
+  - Default filters archived entities; `includeArchived=true` opts out
+- `packages/shared/src/schemas/hydrated.ts` — `HydratedEntitySchema`, `TagEntitiesSchema`, `HydratedLinkEdgeSchema`, `HydratedLinksSchema`
 
-### Backend aggregator
-- `apps/api/src/services/dashboard.ts` — `buildDashboard(prisma, userId, timezone, now)`:
-  - Calls `getOrCreateCurrentSprint` so the dashboard always has a sprint to point at
-  - Runs 7 Prisma queries in parallel via `Promise.all` on the shared client
-  - `dueToday`: `due_date <= endOfToday in user TZ` AND `status NOT IN ('done')` AND `archived_at IS NULL`
-  - `staleTasks`: `updated_at < now - 14 days` AND `status NOT IN ('done', 'backlog')` — excluding backlog is a deliberate improvement over the plan (an untouched backlog task isn't "stale", it was never started)
-  - `inProgressTasks`: tasks in current sprint with `status='in_progress'`
-  - `weeklyFocusByArea`: tasks in current sprint OR with `due_date` inside the week window; grouped by area resolved directly OR transitively via project → area
-  - `recentResources`: top 5 by `created_at DESC`, excluding archived
-  - All date math uses `todayInTz` / `startOfSprint` / `endOfSprint` from `@lifeos/shared` — same helpers as sprint logic, so timezone behavior is consistent
+### New endpoints
+- `GET /api/tags/:id/entities` — returns `{ area, project, task, resource }` with hydrated entities for that tag
+- `GET /api/entity-links/hydrated?entity_type=X&entity_id=Y` — returns `{ outgoing, incoming }` with each edge's other-end entity hydrated in a single response. Both directions fetched in parallel; one hydrator call for all targets; O(1) Map lookup to match edges to their hydrated entities. **No N+1.**
 
-### Backend — date coerce helper (latent P4 bug found + fixed)
-- `apps/api/src/lib/coerce.ts` — `toDate()` converts string/Date/null/empty-string → Date|null
-- Applied to task and project routes for `due_date`, `target_date`, `completed_at`
-- **The bug:** Prisma's `@db.Date` columns reject raw string input. `POST /api/tasks { due_date: '2026-04-08' }` was silently returning 500. Now tasks accept ISO date strings from clients and convert at the Prisma boundary.
+### Backend — integrity test (P7 guardrail)
+- `apps/api/tests/integrity.test.ts` — **4 tests**:
+  - Clean DB: zero orphans in both `entity_links` and `entity_tags`
+  - After normal create → link → tag flow: still zero orphans
+  - After archive (soft delete): still zero orphans (archive ≠ delete per ADR-3)
+  - After raw SQL hard-delete of a referenced area: orphan count ≥ 1 — proves the guard fires when someone tampers
 
-### Frontend
-- `hooks/use-dashboard.ts` — single React Query hook with `queryKey: ['dashboard']`, 30s staleTime, refetch on window focus
-- `components/dashboard/` — Widget, TaskList, CurrentSprintSummary, AreaFocusWidget, RecentResourcesWidget
-- `pages/dashboard-page.tsx` — composes all 6 widgets from one `useDashboard()` call; 3-column grid on large screens
+### Frontend hooks
+- `hooks/use-tags.ts` — `useTags`, `useTag`, `useTagEntities`, `useCreateTag`, `useUpdateTag`, `useDeleteTag`, `useAttachTag`, `useDetachTag`, `useEntityTags` (for "tags on this entity X")
+- `hooks/use-backlinks.ts` — `useBacklinks` (hydrated), `useCreateEntityLink`, `useDeleteEntityLink`
+- All mutations invalidate `['tags', ...]` and `['backlinks']` query keys
+
+### Frontend components
+- `components/tags/tag-chip.tsx` — pill with color dot + optional remove button + Link to `/tags/:id`
+- `components/tags/tag-picker.tsx` — combobox input with create-on-enter, exact-match-detection, suggestion list, inline chip remove
+- `components/links/entity-badge.tsx` — type badge + title + archived strike-through + optional remove button; uses type-specific color classes (emerald/blue/amber/purple for area/project/task/resource)
+- `components/links/link-picker.tsx` — modal with type dropdown + search input + filtered list; client-side self-link exclusion
+- `components/links/backlinks-panel.tsx` — "References" card with "Links to" (outgoing) and "Referenced by" (incoming) sections, inline + Link button to open the picker
+
+### Wired into all 4 entity detail pages
+- `area-detail-page.tsx` — Tags section (`<TagPicker entity_type="area" entity_id={a.id} />`) + `<BacklinksPanel />`
+- `project-detail-page.tsx` — same pattern
+- `task-detail-page.tsx` — same pattern
+- `resource-detail-page.tsx` — same pattern
+- Every detail page now has both tagging and bidirectional linking
+
+### New pages
+- `tags-page.tsx` — rewritten from placeholder: list of tag chips clickable to detail, "+ New tag" modal with react-hook-form + zodResolver
+- `tag-detail-page.tsx` — NEW: `#tagname` header, 4 sections (Areas / Projects / Tasks / Resources) each rendering `<EntityBadge />` rows, total count, delete-tag button with confirm dialog. **Satisfies demo script step 15**: "click tag chip to see all linked entities grouped by type"
+
+### Routes
+- `App.tsx` adds `/tags/:id` route for tag detail page
 
 ### Tests
-- **Backend** `tests/routes.dashboard.test.ts` — **9 tests** covering empty DB, each widget's filter logic, timezone handling, and performance
-- **Frontend** `src/tests/dashboard-page.test.tsx` — **2 tests**: full-payload render with **exactly 1 /api/dashboard fetch call** + empty-payload render
+- **Backend** `tests/integrity.test.ts` — 4 tests (described above), **89/89** total backend tests passing (was 85; +4)
+- **Frontend** `src/tests/backlinks-panel.test.tsx` — **2 tests**:
+  - Renders hydrated outgoing + incoming edges with real data
+  - Shows empty state on zero edges
+  - Uses `mockImplementation` with a URL-aware factory to return fresh `Response` objects per call (`mockResolvedValue` of a single shared Response failed because `Response.body` is a one-shot stream and the LinkPicker's eager useAreas/useProjects/useTasks/useResources queries consumed it first)
 
 ### Verification
 - `pnpm -r typecheck` clean ✅
-- Backend: **85/85** tests (was 76; +9 dashboard) ✅
-- Frontend: **12/12** tests (was 10; +2 dashboard) ✅
-- Manual curl end-to-end:
-  - Empty dashboard returns all 6 sections with empty arrays + find-or-create sprint ✅
-  - Populated dashboard shows inProgressTasks, weeklyFocusByArea aggregation (2 tasks, 105 min), recentResources ✅
-  - Timezone handling verified: task with `due_date: '2026-04-09'` (UTC tomorrow) correctly excluded from dueToday when user is in Boise (April 8 local) ✅
+- **Backend: 89/89 tests passing** (was 85; +4 integrity)
+- **Frontend: 14/14 tests passing** (was 12; +2 backlinks)
 
-### Codex tier C review: APPROVED
-- blocking_issues=[]
-- All open questions pre-answered in the implementation:
-  - Dashboard currentSprint find-or-creates (plan path)
-  - recentResources strictly `created_at DESC`
-  - weeklyFocusByArea counts all (not just incomplete) tasks in current sprint + week window
+### Codex P6 advisory coverage
+- ✅ Polymorphic hydrator is batched by type (≤N queries for N distinct types)
+- ✅ Backlinks endpoint returns single round-trip with hydrated data
+- ✅ Tag detail satisfies demo step 15 (grouped by type)
+- ✅ Archive-only lifecycle honored (link/tag rows persist through entity archive)
+- ✅ Integrity test proves orphans can only come from manual tampering
 
-### Deviation log (P6)
-1. **Date coerce helper `lib/coerce.ts`** — not in the original plan but required by a latent P4 bug where Prisma's `@db.Date` columns rejected raw string input.
-2. **`Promise.all` rather than `prisma.$transaction`** — the plan mentioned transaction-batched reads, but `$transaction([...])` serializes queries within a transaction. `Promise.all` on the shared Prisma client lets the connection pool parallelize them, which is what we want for read-only aggregation.
-3. **`staleTasks` widget uses shared `TaskList`** — no dedicated "stale warnings" component needed.
+### Deviation log (P7)
+1. **`useEntityTags` hook is O(tag_count)** — fetches all tags and per-tag entities to compute "which tags are attached to this entity". Acceptable at v1 single-user scale. A dedicated `GET /api/entities/{type}/{id}/tags` endpoint would be the optimization; deferred to a refinement phase.
+2. **Client-side self-link exclusion** in `LinkPicker` because the server already has a CHECK constraint but the picker should never offer self as a target anyway.
+3. **`mockImplementation` with URL factory** in the backlinks test instead of `mockResolvedValue` — necessary because Response body streams are single-consumption and the LinkPicker's sibling hooks fire first.

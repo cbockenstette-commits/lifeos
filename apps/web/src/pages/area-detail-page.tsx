@@ -5,6 +5,8 @@ import { Button } from '../components/ui/button.js';
 import { Modal } from '../components/ui/modal.js';
 import { CenteredSpinner } from '../components/ui/spinner.js';
 import { AreaForm } from '../components/forms/area-form.js';
+import { TagPicker } from '../components/tags/tag-picker.js';
+import { BacklinksPanel } from '../components/links/backlinks-panel.js';
 import {
   useArea,
   useUpdateArea,
@@ -139,9 +141,12 @@ export default function AreaDetailPage(): JSX.Element {
             <EmptyInline>No resources in this area.</EmptyInline>
           )}
         </Section>
-        <Section title="Linked entities">
-          <EmptyInline>Backlinks + tag display land in P7.</EmptyInline>
+        <Section title="Tags">
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <TagPicker entity_type="area" entity_id={a.id} />
+          </div>
         </Section>
+        <BacklinksPanel entity_type="area" entity_id={a.id} />
       </div>
       <Modal
         open={editing}

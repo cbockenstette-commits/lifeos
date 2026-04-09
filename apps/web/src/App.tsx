@@ -13,6 +13,7 @@ import SprintsPage from './pages/sprints-page.js';
 import SprintDetailPage from './pages/sprint-detail-page.js';
 import SprintPlanningPage from './pages/sprint-planning-page.js';
 import TagsPage from './pages/tags-page.js';
+import TagDetailPage from './pages/tag-detail-page.js';
 import NotFoundPage from './pages/not-found-page.js';
 
 export default function App(): JSX.Element {
@@ -32,6 +33,7 @@ export default function App(): JSX.Element {
         <Route path="sprints/:id" element={<SprintDetailPage />} />
         <Route path="sprints/:id/plan" element={<SprintPlanningPage />} />
         <Route path="tags" element={<TagsPage />} />
+        <Route path="tags/:id" element={<TagDetailPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
