@@ -1,0 +1,43 @@
+{
+  "artifact_type": "plan_review",
+  "created_at": "2026-04-09T01:49:58.241208+00:00",
+  "transport": "codex-cli",
+  "script": "gpt_plan.py",
+  "input_files": [
+    "current_goal.md",
+    "current_scope.md",
+    "next_task.md",
+    "open_risks.md",
+    "approval_gates.md"
+  ],
+  "dry_run": false,
+  "response": {
+    "status": "revise",
+    "summary": "The phase ordering and MVP boundary are generally sound, and starting with P0 scaffolding is correctly prioritized. The main issue is not scope creep but internal inconsistency: several later-phase tests and service expectations still assume hard-delete cleanup even though ADR-3 explicitly removes hard delete from the v1 API contract. There is also an unresolved mismatch between the stated polymorphic scope ('every entity type') and the P7 acceptance/UI descriptions, which currently exclude Sprint from tag/detail grouping behavior.",
+    "key_risks": [
+      "Plan drift around deletion semantics: ADR-3 says archive-only, but P7 tests and known risks still reference delete cleanup behavior.",
+      "Polymorphic scope is underspecified for Sprint: EntityType includes sprint, but tag detail grouping and demo coverage only mention Areas, Projects, Tasks, and Resources.",
+      "`packages/shared` acceptance is slightly misaligned with the stated package surface; P0 should verify importing an actual shared export such as `AreaSchema`, not an assumed `z` re-export.",
+      "Raw SQL constraints/indexes outside Prisma remain a real maintenance hazard even with the proposed smoke tests; this needs explicit execution discipline in migration docs."
+    ],
+    "blocking_issues": [
+      "Resolve the v1 entity lifecycle contract everywhere: remove or rewrite all references to hard-delete cleanup (`delete entity cleans links`, cleanup-on-delete mitigations, orphan risk wording) so routes, services, and tests all match archive-only behavior.",
+      "Decide whether Sprint is truly included in polymorphic tags/links for v1. If yes, update P7 acceptance criteria, tag detail grouping, backlinks behavior, and demo coverage; if no, remove `sprint` from the polymorphic contract and related enums/schema now before P1."
+    ],
+    "confidence": "high",
+    "recommended_next_step": "Revise `next_task.md` to make deletion semantics and Sprint polymorphism fully consistent, then approve P0 scaffolding without changing the overall phase order.",
+    "acceptance_checks": [
+      "`next_task.md`, risk register, and required-tests sections contain no remaining references to hard-delete cleanup in v1.",
+      "The chosen Sprint tagging/linking decision is reflected consistently in `EntityType`, P7 acceptance criteria, demo steps, and tag-detail/backlinks UI descriptions.",
+      "P0 acceptance explicitly verifies a real shared package export resolves in Vite dev mode without a build step.",
+      "P1 schema/tests are updated so all documented constraints and partial indexes are asserted from Postgres metadata."
+    ],
+    "open_questions": [
+      "Should Sprint be taggable and linkable in v1, or should polymorphism be limited to Areas, Projects, Tasks, and Resources until v2?",
+      "If archive-only is final for v1, do any admin/dev-only SQL scripts exist that could still create orphans and therefore need documented guardrails beyond `integrity.test.ts`?",
+      "Should `relation_type='parent_of'` remain in `EntityLink` given native hierarchy fields already exist for Project and Task?"
+    ],
+    "review_tier_confirmation": "C",
+    "approve_or_revise": "revise"
+  }
+}

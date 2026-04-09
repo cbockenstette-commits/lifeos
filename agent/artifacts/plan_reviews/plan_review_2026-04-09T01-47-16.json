@@ -1,0 +1,45 @@
+{
+  "artifact_type": "plan_review",
+  "created_at": "2026-04-09T01:47:16.078261+00:00",
+  "transport": "codex-cli",
+  "script": "gpt_plan.py",
+  "input_files": [
+    "current_goal.md",
+    "current_scope.md",
+    "next_task.md",
+    "open_risks.md",
+    "approval_gates.md"
+  ],
+  "dry_run": false,
+  "response": {
+    "status": "revise",
+    "summary": "The plan is generally well-prioritized and appropriately phased for an MVP: scaffold first, lock schema early, then build API, shell, core views, sprint flow, dashboard, and cross-entity links. The main issue is not scope creep but a few internal contract mismatches between the schema, API acceptance criteria, and deletion/archive behavior. Those should be resolved before P0/P1 so downstream implementation and tests are not built on conflicting assumptions.",
+    "key_risks": [
+      "`Task` ownership semantics are inconsistent: the raw SQL check enforces only 'at least one of project_id or area_id', while P2 acceptance requires both-null and both-set to return 422, which is true XOR.",
+      "Entity lifecycle semantics are inconsistent: the plan says soft delete only with no real DELETE exposed, but P7 and known-risk text rely on delete-time cleanup of polymorphic links/tags.",
+      "Tag discovery UX is underspecified for the MVP demo: step 15 requires clicking a tag chip to see all linked entities, but no tag detail page or equivalent route/view is explicitly planned in the frontend file map.",
+      "Raw SQL constraints and partial indexes are intentionally outside Prisma's model layer; without a precise migration discipline, schema drift remains a medium operational risk even in a greenfield repo."
+    ],
+    "blocking_issues": [
+      "Resolve the `Task` parent rule before implementation. Either make it true XOR in schema/API/tests, or change acceptance criteria to allow both project and area simultaneously.",
+      "Resolve archive vs delete semantics for `entity_links` and `entity_tags`. Define whether archived entities retain links/tags, whether any hard-delete path exists in v1, and which behavior integrity tests should enforce."
+    ],
+    "confidence": "high",
+    "recommended_next_step": "Revise the plan text and schema contract to settle `Task` parent validation and entity archive/delete behavior, then proceed with P0 scaffolding unchanged.",
+    "acceptance_checks": [
+      "The approved schema contract explicitly matches API validation for `Task` parent fields, and the migration enforces the same rule.",
+      "The approved entity lifecycle contract explicitly states what happens to links/tags on archive and on any hard-delete path, and tests are aligned to that behavior.",
+      "P0 still verifies `@lifeos/shared` imports type-check in Vite dev mode without a separate build step.",
+      "P1 migration output includes the intended CHECK constraints and partial indexes exactly as documented.",
+      "Planned frontend scope includes a concrete way to satisfy demo step 15 for tag-based cross-entity navigation."
+    ],
+    "open_questions": [
+      "Should a task be allowed to belong to both a project and an area, or must it belong to exactly one of them?",
+      "When an entity is archived, should backlinks/tag associations remain visible on archived-detail views, be hidden from default queries, or be removed?",
+      "How should tag exploration work in v1: dedicated tag detail page, filtered list view, or another UX path that still satisfies demo step 15?",
+      "Is the intended review tier still `B` after accounting for the polymorphic-schema and raw-SQL coordination risks, or should milestone reviews be treated closer to tier `C` at P1/P7?"
+    ],
+    "review_tier_confirmation": "B",
+    "approve_or_revise": "revise"
+  }
+}

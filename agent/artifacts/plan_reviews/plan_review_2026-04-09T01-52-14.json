@@ -1,0 +1,43 @@
+{
+  "artifact_type": "plan_review",
+  "created_at": "2026-04-09T01:52:14.755147+00:00",
+  "transport": "codex-cli",
+  "script": "gpt_plan.py",
+  "input_files": [
+    "current_goal.md",
+    "current_scope.md",
+    "next_task.md",
+    "open_risks.md",
+    "approval_gates.md"
+  ],
+  "dry_run": false,
+  "response": {
+    "status": "revise",
+    "summary": "The task is generally well-prioritized and sequenced: P0 through P8 maps cleanly to the stated MVP and the 17-step demo script, and most major architectural tradeoffs are explicit. I would not block execution, but there are a few planning inconsistencies around delete semantics, mutation organization, and acceptance checks that should be tightened before P0 starts so later phases do not inherit contradictory contracts.",
+    "key_risks": [
+      "ADR-3 says there is no hard-delete path in v1, but Known Risk #6 still assumes cleanup-on-delete in entity services; that contradiction will cause incorrect service/test design if left unresolved.",
+      "Dashboard invalidation mitigation depends on a centralized `apps/web/src/api/mutations.ts`, but that file is not included in the phase/file plan until risks mention it; ownership should be made explicit before frontend mutation work starts.",
+      "`schema-parity.test.ts` is underspecified: 'every Prisma scalar has a Zod counterpart' is not precise enough to guarantee meaningful parity and could create false confidence or brittle tests.",
+      "`entity_tags` lacks `user_id`, so user-ownership consistency is enforced only indirectly via tag ownership and entity lookup; acceptable for v1 single-user, but it is a migration risk for the auth-ready posture.",
+      "P0 acceptance mentions importing `HEALTH_CHECK_NAME`, while the risk section later references `AreaSchema`; the actual workspace-resolution proof should be standardized to one concrete check to avoid ambiguity."
+    ],
+    "blocking_issues": [],
+    "confidence": "high",
+    "recommended_next_step": "Revise the plan text to remove the hard-delete cleanup contradiction, explicitly place shared frontend mutation helpers in scope, and tighten the schema-parity/workspace-resolution acceptance checks before approving P0.",
+    "acceptance_checks": [
+      "The plan states one consistent v1 entity lifecycle contract: archive-only, no hard delete, with tests aligned to that contract.",
+      "P0 contains one explicit workspace-resolution proof that is reused as the canonical check for `@lifeos/shared` imports in Vite dev mode.",
+      "Frontend mutation ownership is explicit, including where `invalidateDashboard()` lives and which phases introduce it.",
+      "P1/P2 tests precisely define what `schema-constraints.test.ts` and `schema-parity.test.ts` must assert, rather than relying on broad wording.",
+      "The 17-step demo script remains satisfiable without adding scope beyond the current MVP boundaries."
+    ],
+    "open_questions": [
+      "Should `entity_tags` also include `user_id` now to simplify future auth hardening, or is the team intentionally deferring that migration cost?",
+      "Should the dashboard invalidation helper be introduced in P3 with the API client layer rather than deferred implicitly until later mutation work?",
+      "What exact parity rules should `schema-parity.test.ts` enforce: field presence only, nullable/required alignment, enum alignment, or request/response schema coverage?",
+      "Is the intended sprint-planning UX a backlog-to-sprint assignment view separate from the per-sprint Kanban board, and if so should that distinction be made more explicit in acceptance criteria?"
+    ],
+    "review_tier_confirmation": "B",
+    "approve_or_revise": "revise"
+  }
+}
