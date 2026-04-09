@@ -116,6 +116,26 @@ const projectsRoutes: FastifyPluginAsync = async (app) => {
       });
     },
   );
+
+  f.post(
+    '/:id/unarchive',
+    {
+      schema: {
+        params: z.object({ id: UuidSchema }),
+        response: { 200: ProjectSchema },
+      },
+    },
+    async (req) => {
+      await app.prisma.project.findFirstOrThrow({
+        where: { id: req.params.id, user_id: req.user.id },
+        select: { id: true },
+      });
+      return app.prisma.project.update({
+        where: { id: req.params.id },
+        data: { archived_at: null },
+      });
+    },
+  );
 };
 
 export default projectsRoutes;

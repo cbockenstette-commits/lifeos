@@ -109,6 +109,26 @@ const resourcesRoutes: FastifyPluginAsync = async (app) => {
       });
     },
   );
+
+  f.post(
+    '/:id/unarchive',
+    {
+      schema: {
+        params: z.object({ id: UuidSchema }),
+        response: { 200: ResourceSchema },
+      },
+    },
+    async (req) => {
+      await app.prisma.resource.findFirstOrThrow({
+        where: { id: req.params.id, user_id: req.user.id },
+        select: { id: true },
+      });
+      return app.prisma.resource.update({
+        where: { id: req.params.id },
+        data: { archived_at: null },
+      });
+    },
+  );
 };
 
 export default resourcesRoutes;

@@ -153,6 +153,26 @@ const tasksRoutes: FastifyPluginAsync = async (app) => {
       });
     },
   );
+
+  f.post(
+    '/:id/unarchive',
+    {
+      schema: {
+        params: z.object({ id: UuidSchema }),
+        response: { 200: TaskSchema },
+      },
+    },
+    async (req) => {
+      await app.prisma.task.findFirstOrThrow({
+        where: { id: req.params.id, user_id: req.user.id },
+        select: { id: true },
+      });
+      return app.prisma.task.update({
+        where: { id: req.params.id },
+        data: { archived_at: null },
+      });
+    },
+  );
 };
 
 export default tasksRoutes;

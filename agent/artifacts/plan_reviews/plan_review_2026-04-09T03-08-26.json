@@ -1,0 +1,45 @@
+{
+  "artifact_type": "plan_review",
+  "created_at": "2026-04-09T03:08:26.052963+00:00",
+  "transport": "codex-cli",
+  "script": "gpt_plan.py",
+  "input_files": [
+    "current_goal.md",
+    "current_scope.md",
+    "next_task.md",
+    "open_risks.md",
+    "approval_gates.md"
+  ],
+  "dry_run": false,
+  "response": {
+    "status": "approve",
+    "summary": "P5 is the correct next phase after P4 and is well aligned with the locked MVP scope: it adds the first sprint lifecycle, planning workflow, and Kanban behavior that the demo script depends on. The task is bounded to sprint/task movement rather than broadening into tags, dashboard, or extra planning features. The main concerns are execution risks around optimistic ordering, exact planning-view semantics, and keeping the server as the canonical source of truth, but none are blocking.",
+    "key_risks": [
+      "Optimistic drag-and-drop updates can desync from canonical server ordering during rapid consecutive moves.",
+      "`sort_order` gap exhaustion or inconsistent rebalance behavior could create unstable within-column ordering.",
+      "Planning view semantics are not fully explicit: the source task pool and rules for assigning/removing tasks from a sprint need to stay consistent across UI and API.",
+      "Dashboard-affecting sprint/task mutations may miss `invalidateDashboard()` if the established mutation helper pattern is not followed.",
+      "Keyboard drag support can regress if the dnd-kit implementation is validated only for pointer interactions."
+    ],
+    "blocking_issues": [],
+    "confidence": "high",
+    "recommended_next_step": "Proceed with P5 by defining the exact task-move API contract first, then implement server-side canonical reorder logic before wiring optimistic dnd-kit behavior in the web app.",
+    "acceptance_checks": [
+      "`GET /api/sprints/current` or sprint creation flow yields exactly one Sunday-through-Saturday sprint for the current week.",
+      "`PATCH /api/tasks/:id` persists cross-column moves and within-column reorders with stable canonical `sort_order` after reload.",
+      "Sprint planning view updates assigned-task capacity from `estimate_minutes` and shows area balance counts correctly as tasks are added or removed.",
+      "React Query optimistic updates roll back cleanly on API failure and settle to the server-returned ordering on success.",
+      "Keyboard drag smoke test passes for moving a task between Kanban columns.",
+      "All new sprint/task mutation hooks follow the shared invalidation pattern, including dashboard invalidation where applicable.",
+      "`pnpm -r typecheck`, backend tests, and web RTL tests all pass after P5 changes."
+    ],
+    "open_questions": [
+      "In the sprint planning view, should the candidate pool include only unsprinted backlog tasks, or any non-archived task not already completed?",
+      "When a task is assigned to a sprint from planning, should its status remain unchanged or be normalized to `backlog`/`todo`?",
+      "Should removing a task from a sprint in planning clear only `sprint_id`, or also adjust its board status/order?",
+      "Is sprint creation exposed only through the `/sprints` empty-state CTA, or should the API also auto-create on first access to planning/detail routes for the current week?"
+    ],
+    "review_tier_confirmation": "C",
+    "approve_or_revise": "approve"
+  }
+}

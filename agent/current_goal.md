@@ -2,54 +2,90 @@
 
 Build a personal life-management web app at `~/Documents/lifeos/` combining Tiago Forte's PARA method with Scrum-style weekly sprints.
 
-**Phase:** P3 Frontend shell + routing — **COMPLETE**, awaiting Codex tier C phase-end review.
-**Next:** P4 PARA Views (Areas, Projects, Tasks, Resources) — list + detail + create/edit, react-hook-form + shared Zod schemas, URL-param sort/filter, archive toggle.
+**Phase:** P4 PARA Views — **COMPLETE**, awaiting Codex tier C phase-end review.
+**Next:** P5 Sprint + Kanban (sprint list, sprint detail with dnd-kit Kanban board, optimistic task moves, sprint planning view with capacity + area balance).
 
-## P3 completion evidence
+## P4 completion evidence
 
-### Typed API client + query keys
-- `apps/web/src/lib/api-client.ts` — `apiFetch<T>()` fetch wrapper with `Bearer DEV` placeholder Authorization header (ADR-7 1-line JWT swap surface). Throws typed `ApiError` on non-2xx with status, code, details. Convenience `api.get/post/patch/delete` verbs.
-- `apps/web/src/lib/query-keys.ts` — every React Query key centralized by entity. No inline string arrays.
+### Backend — unarchive routes
+- `POST /api/{areas|projects|tasks|resources}/:id/unarchive` on all 4 archivable entities. Clears `archived_at` back to null. Ownership-scoped via `findFirstOrThrow`.
+- New test `tests/routes.areas.test.ts` → `POST /:id/unarchive restores an archived area` (8/8 area tests passing, **71/71** total backend tests).
 
-### Mutation ownership (Codex P1 advisory fulfilled)
-- `apps/web/src/api/mutations.ts` — `createQueryClient()` with sensible defaults (30s staleTime, refetchOnWindowFocus, retry:1) + canonical `invalidateDashboard(queryClient)` helper. Introduced in P3 before any mutation hook exists so downstream phases have a single import target and structurally-hard-to-forget dashboard invalidation.
+### Frontend infrastructure
+- Installed `react-hook-form`, `@hookform/resolvers`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`, `jsdom`, `vitest@^2`
+- `apps/web/vitest.config.ts` + `src/tests/setup.ts` with jsdom environment, React plugin, `@testing-library/jest-dom/vitest` matchers
 
-### Zustand UI store (UI-local only)
-- `apps/web/src/stores/ui-store.ts` — persists only `sidebarOpen` (durable preference). `activeModal` resets on reload. ZERO server-state duplication.
+### Shared UI primitives (`components/ui/`)
+- `button.tsx` — primary/secondary/ghost/danger variants, sm/md sizes
+- `input.tsx` — Input, Textarea, Select, Label, Field (label + error slot)
+- `modal.tsx` — dialog with ESC-to-close, backdrop click, accessible close button
+- `empty-state.tsx` — reusable "no X yet" card with optional action
+- `list-item-row.tsx` — reusable row with archived strike-through, actions slot
+- `spinner.tsx` + `CenteredSpinner` — loading states
+- `archive-toggle.tsx` — URL-param-backed `?includeArchived=true` toggle, **`useIncludeArchived()` hook** shared across all list pages
 
-### Layout components
-- `components/layout/sidebar.tsx` — Tailwind-styled nav with NavLink active highlighting, conditional render based on `sidebarOpen`
-- `components/layout/topbar.tsx` — hamburger toggle + `useCurrentUser` display (name + timezone)
-- `components/layout/page-shell.tsx` — sidebar + topbar + React Router `<Outlet />`
-- `components/page-header.tsx` — reusable page title + subtitle + actions slot
-- `components/placeholder-panel.tsx` — reusable "coming in P{N}" panel used by every page placeholder
+### Form error mapping
+- `lib/form-errors.ts` — `mapApiErrorToForm(err, setError)` maps `ApiError.details` (Zod issue array) to per-field `setError` calls, returns any unmatched error as a `bannerError` string for a top-of-form banner
 
-### Placeholder pages (one per nav item)
-- `dashboard-page.tsx`, `areas-page.tsx`, `projects-page.tsx`, `tasks-page.tsx`, `resources-page.tsx`, `sprints-page.tsx`, `tags-page.tsx`, `not-found-page.tsx`
+### Entity hooks (React Query)
+Every hook imports from `@lifeos/shared` for types and calls `invalidateDashboard(queryClient)` in every mutation onSuccess — the canonical pattern established in P3 is now in active use.
+- `use-areas.ts` — useAreas/useArea/useCreateArea/useUpdateArea/useArchiveArea/useUnarchiveArea
+- `use-projects.ts` — same pattern + area_id, status filters
+- `use-tasks.ts` — same pattern + project_id, area_id, sprint_id, status filters
+- `use-resources.ts` — same pattern + area_id filter
 
-### Hooks
-- `hooks/use-current-user.ts` — `useCurrentUser()` uses React Query to fetch `/api/users/me`, **performs ADR-8 browser timezone auto-detect**: on first load, if `Intl.DateTimeFormat().resolvedOptions().timeZone` differs from the user's stored timezone, PATCH it via `/api/users/me`. `useRef` guard prevents loop. `useUpdateCurrentUser()` for manual edits.
+### Forms (`components/forms/`)
+- `area-form.tsx` — react-hook-form + `zodResolver(AreaCreateSchema)`, normalizes empty strings to null
+- `project-form.tsx` — loads areas via `useAreas()` for the area picker; status enum dropdown; target_date field
+- `task-form.tsx` — **XOR parent picker** via radio buttons (project vs area), corresponding `<Select>` switches based on pick, urgency/importance dropdowns with `Controller`, client-side XOR guard before network round-trip, server XOR errors mapped to banner
+- `resource-form.tsx` — kind dropdown (note/url/clipping), URL field with Zod `.url()` validation, body_md textarea
 
-### Providers + routing
-- `main.tsx` — `QueryClientProvider` + `BrowserRouter` + `<App />` in `<React.StrictMode>`
-- `App.tsx` — React Router nested routes all under `<PageShell />`: `/` dashboard, `/areas`, `/projects`, `/tasks`, `/resources`, `/sprints`, `/tags`, catch-all `/*` NotFound
+### Pages — full CRUD with URL-param filters
+- `areas-page.tsx` — list + modal create + archive toggle
+- `area-detail-page.tsx` — read view with projects/tasks/resources sections + edit modal + archive/restore
+- `projects-page.tsx` — list + modal create + area filter (URL param `?area=`) + status filter (URL param `?status=`) + archive toggle
+- `project-detail-page.tsx` — read view with stat grid + child tasks + edit modal
+- `tasks-page.tsx` — list + modal create + status filter + archive toggle
+- `task-detail-page.tsx` — read view with full stat grid + edit modal with XOR handling
+- `resources-page.tsx` — list + modal create + archive toggle
+- `resource-detail-page.tsx` — read view with URL (clickable) + body_md display + edit modal
 
-### API bug fix (discovered during P3 verify)
-- `/health` moved to BOTH `/health` and `/api/health`. The `/health`-only mount couldn't be reached through Vite's `/api/*` proxy. Now both paths return the same handler. `/health` stays for future docker healthchecks / ops tooling; `/api/health` satisfies the Codex acceptance criterion that "Vite proxy successfully reaches the backend health endpoint through /api/health".
+### Routing
+- `App.tsx` extended with 4 new detail routes: `/areas/:id`, `/projects/:id`, `/tasks/:id`, `/resources/:id`
 
-### Verified via curl (Vite proxy → API backend)
-- `GET /api/health` → `{"status":"ok","service":"lifeos",...}` via both direct and proxy ✅
-- `GET /api/users/me` → user row with correct email/name/timezone via proxy ✅
-- `GET /` → index.html with React Refresh + /src/main.tsx entry ✅
-- `GET /projects` → client-routed, returns same index.html (BrowserRouter handles it on the client) ✅
+### RTL smoke test
+- `src/tests/areas-page.test.tsx` — **3 tests passing**:
+  - Renders page header and "New area" button on empty list
+  - Renders area names from mocked API response
+  - Shows empty state when no areas exist
+- Global `fetch` mocked per test; `QueryClientProvider` + `MemoryRouter` wrappers shared
 
-### Codex P2 advisory resolution
-- ✅ Typed API client implemented and consumable: `useCurrentUser` uses `api.get<User>('/users/me')` and `api.patch<User>('/users/me', body)`
-- ✅ `invalidateDashboard()` exports from `apps/web/src/api/mutations.ts`, type-checks from a consumer (no consumer yet — lands in P4 — but the export is ready)
-- ✅ Web imports `@lifeos/shared` (not just HEALTH_CHECK_NAME this time — now `User`, `UserUpdate`) and passes typecheck
-- ✅ Zustand has UI-local state only (sidebarOpen, activeModal; no entity data)
-- ✅ Tailwind styles render in the shell (classes resolved via compiled CSS)
-- ✅ ADR-8 browser TZ auto-detect wired in `use-current-user.ts` (the Codex P2 open question "defer or wire now?" resolved to wire now)
+### Verification
+- `pnpm -r typecheck` clean across all 3 workspaces ✅
+- `pnpm --filter api test` — 71/71 backend tests passing (was 70; new unarchive test added) ✅
+- `pnpm --filter web test` — 3/3 RTL smoke tests passing ✅
+- Manual end-to-end curl smoke:
+  - Created Area "Health" with color + description ✅
+  - Created Project "Run a 5k" under area ✅
+  - Created Task "Buy running shoes" under project with urgency=2, importance=3 → `priority_score=6` (Eisenhower 2*1.5 + 3) ✅
+  - Created standalone Task "Drink more water" under area (the other XOR branch) ✅
+  - POST a task with no parent → 422 (XOR enforcement) ✅
+  - DELETE project → default list 0, `?includeArchived=true` list 1 ✅
+  - POST `/projects/:id/unarchive` → default list back to 1 ✅
 
-### Deviation log (P3)
-1. `/health` also mounted at `/api/health` — needed for Vite proxy reachability. Not in the original plan file but a natural acceptance-criterion fix.
+### Codex P3 advisory coverage
+- ✅ CRUD + archive for Areas, Projects, Tasks, Resources
+- ✅ Archived hidden by default, revealed by toggle
+- ✅ Sort/filter state in URL (`?includeArchived`, `?area`, `?status`) — survives refresh
+- ✅ Forms use shared Zod-backed validation (react-hook-form + zodResolver)
+- ✅ Inline field errors + top-of-form banner from mapped server errors
+- ✅ Unarchive path explicit (POST /:id/unarchive)
+- ✅ Standardized query param names: `includeArchived`, `area`, `status`
+- ✅ Standardized archive toggle behavior (`useIncludeArchived` hook) across all list views
+- ✅ `pnpm -r typecheck` passes after P4 changes
+- ✅ At least one RTL smoke test covers a P4 list flow and passes (areas-page, 3 tests)
+
+### Deviation log (P4)
+- Project hierarchy (parent_id tree display) intentionally deferred — projects-page shows a flat list. Re-parenting from the UI is v1.1. The schema supports it, the detail view shows parent_id as metadata, but the tree UI would be extra scope. Project detail page links to parent/children are a small refinement for later.
+- Task form's `estimate_minutes` uses `setValueAs` to coerce empty string → null since HTML number inputs can submit empty strings.
+- Areas page sort/filter is currently just the archive toggle (no per-field sort). Sort bar across all list views deferred to a small refinement phase — the URL-param pattern is in place.

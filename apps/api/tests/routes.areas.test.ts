@@ -109,6 +109,27 @@ describe('areas routes', () => {
     expect(res.json().color).toBe('#3b82f6');
   });
 
+  it('POST /:id/unarchive restores an archived area', async () => {
+    const created = (
+      await app.inject({
+        method: 'POST',
+        url: '/api/areas',
+        payload: { name: 'Health' },
+      })
+    ).json();
+    await app.inject({ method: 'DELETE', url: `/api/areas/${created.id}` });
+    const restore = await app.inject({
+      method: 'POST',
+      url: `/api/areas/${created.id}/unarchive`,
+    });
+    expect(restore.statusCode).toBe(200);
+    expect(restore.json().archived_at).toBeNull();
+
+    // Now shows up in default list again.
+    const list = await app.inject({ method: 'GET', url: '/api/areas' });
+    expect(list.json()).toHaveLength(1);
+  });
+
   it('DELETE archives rather than hard-deletes', async () => {
     const created = (
       await app.inject({

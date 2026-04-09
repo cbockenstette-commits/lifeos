@@ -103,6 +103,27 @@ const areasRoutes: FastifyPluginAsync = async (app) => {
       });
     },
   );
+
+  // POST /:id/unarchive — restore an archived area.
+  f.post(
+    '/:id/unarchive',
+    {
+      schema: {
+        params: z.object({ id: UuidSchema }),
+        response: { 200: AreaSchema },
+      },
+    },
+    async (req) => {
+      await app.prisma.area.findFirstOrThrow({
+        where: { id: req.params.id, user_id: req.user.id },
+        select: { id: true },
+      });
+      return app.prisma.area.update({
+        where: { id: req.params.id },
+        data: { archived_at: null },
+      });
+    },
+  );
 };
 
 export default areasRoutes;
