@@ -1,0 +1,44 @@
+{
+  "artifact_type": "plan_review",
+  "created_at": "2026-04-09T02:30:02.192514+00:00",
+  "transport": "codex-cli",
+  "script": "gpt_plan.py",
+  "input_files": [
+    "current_goal.md",
+    "current_scope.md",
+    "next_task.md",
+    "open_risks.md",
+    "approval_gates.md"
+  ],
+  "dry_run": false,
+  "response": {
+    "status": "revise",
+    "summary": "P2 is the correct next phase and is generally well-bounded: the schema, migration guardrails, and real-Postgres test posture from P1 are sufficient foundations for backend CRUD and service-layer work. The main gap is a scope inconsistency around the locked ADR-8 timezone flow: P2 should explicitly include the minimal `/api/users/me` update surface and its shared schema so later frontend work does not depend on an omitted backend contract.",
+    "key_risks": [
+      "ADR-8 depends on `PATCH /api/users/me`, but that route/schema is not explicitly listed in the P2 file set or acceptance criteria.",
+      "Hand-written Zod schemas can drift from Prisma unless `schema-parity.test.ts` lands in the same phase as CRUD routes.",
+      "Archive filtering is intentionally route-layer only; inconsistent use of `applyArchivedFilter` across list/detail/backlink endpoints is an easy regression path.",
+      "Polymorphic link existence checks can become chatty if `assertEntityExists` and hydration are implemented per-row instead of batched by type."
+    ],
+    "blocking_issues": [],
+    "confidence": "high",
+    "recommended_next_step": "Proceed with P2, but first amend the phase scope to explicitly include `PATCH /api/users/me` plus its shared Zod schema and integration tests for timezone/name updates.",
+    "acceptance_checks": [
+      "All P2 integration tests pass against the real Postgres test database with TRUNCATE-based isolation.",
+      "`schema-parity.test.ts` passes for Area, Project, Task, Resource, Sprint, and Tag create/response schemas.",
+      "`POST /api/areas` returns 201 with a created record scoped to `req.user.id`.",
+      "`GET /api/areas` excludes archived rows by default and includes them with `?includeArchived=true`.",
+      "Task create/update requests with neither or both of `project_id` and `area_id` fail with 422.",
+      "`POST /api/entity-links` returns 404 when any referenced polymorphic entity does not exist.",
+      "`GET /api/sprints/current` is idempotent for the same user/date and does not create duplicate rows.",
+      "`PATCH /api/users/me` successfully updates `timezone` and/or `name` and rejects invalid timezone payloads via Zod validation."
+    ],
+    "open_questions": [
+      "Should P2 also include the `users` route module explicitly, or is the team comfortable treating `/api/users/me` as part of config/auth plumbing rather than entity CRUD?",
+      "What is the exact 400 vs 422 policy for Zod validation failures in Fastify so route tests assert the intended contract consistently?",
+      "Will `assertEntityExists` remain simple per-request lookups in P2, with batching deferred to P7, or is early service abstraction expected now?"
+    ],
+    "review_tier_confirmation": "C",
+    "approve_or_revise": "revise"
+  }
+}

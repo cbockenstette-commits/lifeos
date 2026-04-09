@@ -1,0 +1,257 @@
+// lifeos v1 Prisma schema
+//
+// Source of truth for the database. Raw SQL in 0_init/migration.sql appends
+// the polymorphic CHECK constraints and partial indexes that Prisma cannot
+// express directly. See ARCHITECTURE.md (added in P8) for the schema
+// evolution discipline recipe when adding new migrations.
+//
+// Scope decisions (from ADR-1 / ADR-2):
+//   - EntityType enum covers area|project|task|resource ONLY.
+//     Sprint is intentionally excluded from polymorphic links/tags in v1.
+//   - Archive = nullable archived_at timestamp (ADR-3). No hard delete.
+//   - Every user-owned table has user_id from day 1 (ADR-7 auth-ready).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum TaskStatus {
+  backlog
+  todo
+  in_progress
+  review
+  done
+}
+
+enum SprintStatus {
+  planned
+  active
+  complete
+}
+
+enum ProjectStatus {
+  not_started
+  active
+  blocked
+  complete
+}
+
+// Sprint is intentionally excluded — sprints are ephemeral weekly containers,
+// not objects you reference or tag forever. v2 may revisit.
+enum EntityType {
+  area
+  project
+  task
+  resource
+}
+
+enum ResourceKind {
+  note
+  url
+  clipping
+}
+
+// ─── User (single-row v1; future auth bolts on here) ───────────────────────
+
+model User {
+  id         String   @id @default(uuid()) @db.Uuid
+  email      String   @unique
+  name       String
+  timezone   String   @default("America/Boise")
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  areas     Area[]
+  projects  Project[]
+  tasks     Task[]
+  resources Resource[]
+  sprints   Sprint[]
+  tags      Tag[]
+}
+
+// ─── Area ───────────────────────────────────────────────────────────────────
+
+model Area {
+  id          String    @id @default(uuid()) @db.Uuid
+  user_id     String    @db.Uuid
+  name        String
+  description String?
+  color       String?
+  archived_at DateTime? @db.Timestamptz(6)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @updatedAt @db.Timestamptz(6)
+
+  user      User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  projects  Project[]
+  tasks     Task[]
+  resources Resource[]
+
+  @@index([user_id])
+}
+
+// ─── Project ────────────────────────────────────────────────────────────────
+
+model Project {
+  id             String        @id @default(uuid()) @db.Uuid
+  user_id        String        @db.Uuid
+  area_id        String?       @db.Uuid
+  parent_id      String?       @db.Uuid
+  name           String
+  description    String?
+  status         ProjectStatus @default(not_started)
+  target_date    DateTime?     @db.Date
+  priority_score Float         @default(0)
+  archived_at    DateTime?     @db.Timestamptz(6)
+  completed_at   DateTime?     @db.Timestamptz(6)
+  created_at     DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime      @updatedAt @db.Timestamptz(6)
+
+  user     User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  area     Area?     @relation(fields: [area_id], references: [id], onDelete: SetNull)
+  parent   Project?  @relation("ProjectHierarchy", fields: [parent_id], references: [id], onDelete: SetNull)
+  children Project[] @relation("ProjectHierarchy")
+  tasks    Task[]
+
+  @@index([user_id])
+  @@index([area_id])
+  @@index([parent_id])
+  @@index([status])
+}
+
+// ─── Task ───────────────────────────────────────────────────────────────────
+
+model Task {
+  id               String     @id @default(uuid()) @db.Uuid
+  user_id          String     @db.Uuid
+  project_id       String?    @db.Uuid
+  area_id          String?    @db.Uuid
+  parent_id        String?    @db.Uuid
+  sprint_id        String?    @db.Uuid
+  title            String
+  description      String?
+  status           TaskStatus @default(backlog)
+  urgency          Int        @default(0) // 0..3 Eisenhower
+  importance       Int        @default(0) // 0..3 Eisenhower
+  estimate_minutes Int?
+  due_date         DateTime?  @db.Date
+  priority_score   Float      @default(0) // future weighted model slot
+  sort_order       Int        @default(1000)
+  archived_at      DateTime?  @db.Timestamptz(6)
+  completed_at     DateTime?  @db.Timestamptz(6)
+  created_at       DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime   @updatedAt @db.Timestamptz(6)
+
+  user     User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  project  Project? @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  area     Area?    @relation(fields: [area_id], references: [id], onDelete: SetNull)
+  parent   Task?    @relation("TaskHierarchy", fields: [parent_id], references: [id], onDelete: SetNull)
+  children Task[]   @relation("TaskHierarchy")
+  sprint   Sprint?  @relation(fields: [sprint_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([project_id])
+  @@index([area_id])
+  @@index([parent_id])
+  @@index([sprint_id])
+  @@index([sprint_id, status, sort_order]) // Kanban column read path
+  @@index([due_date])
+  @@index([status])
+}
+
+// ─── Resource ───────────────────────────────────────────────────────────────
+
+model Resource {
+  id          String       @id @default(uuid()) @db.Uuid
+  user_id     String       @db.Uuid
+  area_id     String?      @db.Uuid
+  title       String
+  url         String?
+  body_md     String?
+  source_kind ResourceKind @default(note)
+  archived_at DateTime?    @db.Timestamptz(6)
+  created_at  DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime     @updatedAt @db.Timestamptz(6)
+
+  user User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  area Area? @relation(fields: [area_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([area_id])
+}
+
+// ─── Sprint (NOT polymorphic — not in EntityType enum) ─────────────────────
+
+model Sprint {
+  id         String       @id @default(uuid()) @db.Uuid
+  user_id    String       @db.Uuid
+  start_date DateTime     @db.Date // always a Sunday
+  end_date   DateTime     @db.Date // always the following Saturday
+  status     SprintStatus @default(planned)
+  goal       String?
+  created_at DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at DateTime     @updatedAt @db.Timestamptz(6)
+
+  user  User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  tasks Task[]
+
+  @@unique([user_id, start_date])
+  @@index([user_id, status])
+  @@index([start_date])
+}
+
+// ─── Tag ────────────────────────────────────────────────────────────────────
+
+model Tag {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  name       String
+  color      String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user        User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  entity_tags EntityTag[]
+
+  @@unique([user_id, name])
+  @@index([user_id])
+}
+
+// ─── EntityTag (polymorphic join: any entity ↔ any tag) ────────────────────
+
+model EntityTag {
+  id          String     @id @default(uuid()) @db.Uuid
+  tag_id      String     @db.Uuid
+  entity_type EntityType
+  entity_id   String     @db.Uuid
+  created_at  DateTime   @default(now()) @db.Timestamptz(6)
+
+  tag Tag @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+
+  @@unique([tag_id, entity_type, entity_id])
+  @@index([entity_type, entity_id])
+  @@index([tag_id])
+}
+
+// ─── EntityLink (polymorphic bidirectional graph edges) ────────────────────
+
+model EntityLink {
+  id            String     @id @default(uuid()) @db.Uuid
+  user_id       String     @db.Uuid
+  source_type   EntityType
+  source_id     String     @db.Uuid
+  target_type   EntityType
+  target_id     String     @db.Uuid
+  relation_type String     @default("references")
+  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+
+  @@unique([source_type, source_id, target_type, target_id, relation_type])
+  @@index([source_type, source_id])
+  @@index([target_type, target_id])
+  @@index([user_id])
+}

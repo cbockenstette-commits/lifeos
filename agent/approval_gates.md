@@ -14,11 +14,23 @@
   - Tailwind CSS ✅
 - Codex external review: 3 rounds run. Final state: `revise` with `blocking_issues: []`. All blocking items addressed in rounds 1-2; final residuals were consistency polish, addressed before final.
 
-## End of P1 (schema complete)
-- `pnpm --filter api prisma migrate dev --name init` applies cleanly
-- `\d+` in psql shows CHECK constraints and partial indexes
-- Seed inserts exactly one User row
-- Optional: Codex review of the final Prisma schema
+## End of P0 (scaffolding complete) — 2026-04-08
+- pnpm install exits 0 across all workspaces ✅
+- `pnpm -r typecheck` passes ✅
+- `docker compose up -d postgres` brings lifeos-postgres to healthy on 127.0.0.1:5433 ✅
+- `curl 127.0.0.1:3000/health` returns `{"status":"ok","service":"lifeos",...}` ✅
+- Vite dev server serves index.html on 127.0.0.1:5173 and streams TS modules without a build step ✅
+- `@lifeos/shared` imports resolve via `/@fs/.../packages/shared/src/index.ts` directly (TS source, no build) ✅
+- Git repo initialized, first commit `06a66aa` (32 files, 3678 insertions) ✅
+- **Pending:** Codex tier C phase-end review
+
+## End of P1 (schema complete) — 2026-04-08
+- `prisma migrate dev --name init` applied cleanly on first try ✅
+- `\d+ "Task"` shows `task_parent_xor CHECK ((project_id IS NULL) <> (area_id IS NULL))` and `idx_Task_active` partial index ✅
+- Seed inserts exactly 1 User row (verified via `SELECT count(*) FROM "User"` → 1) ✅
+- 12/12 schema-constraints tests pass — CHECKs and partial indexes validated against `pg_constraint`/`pg_indexes` metadata AND enforced against real INSERT rejections ✅
+- `pnpm -r typecheck` passes across 3 workspaces ✅
+- **Pending:** Codex tier C phase-end review
 
 ## End of P2 (backend CRUD complete)
 - All API integration tests green against real Postgres test DB

@@ -469,7 +469,9 @@ CREATE INDEX idx_resource_active ON "Resource" (user_id) WHERE archived_at IS NU
 ---
 
 ### P2 — Backend CRUD + API
-**Files:** `apps/api/src/server.ts`, `apps/api/src/plugins/{prisma,error-handler,auth-stub}.ts`, `apps/api/src/routes/{areas,projects,tasks,resources,sprints,tags,entity-links}.ts`, `apps/api/src/services/{current-sprint,archive,entity-links}.ts`, `apps/api/src/lib/{week,prioritize}.ts`, `packages/shared/src/schemas/*.ts`, `apps/api/tests/**`
+**Files:** `apps/api/src/server.ts`, `apps/api/src/plugins/{prisma,error-handler,auth-stub}.ts`, `apps/api/src/routes/{users,areas,projects,tasks,resources,sprints,tags,entity-links}.ts`, `apps/api/src/services/{current-sprint,archive,entity-links}.ts`, `apps/api/src/lib/{week,prioritize}.ts`, `packages/shared/src/schemas/*.ts` (including `user.ts` for UserSchema + UserUpdateSchema), `apps/api/tests/**`
+
+**User route (ADR-8 completeness):** `GET /api/users/me` returns the current user row; `PATCH /api/users/me` accepts `{ name?, timezone? }` with Zod-validated IANA timezone and returns the updated row. This is the backend contract the frontend's browser-timezone auto-detect depends on. It is the only mutation surface on the User table in v1.
 
 **Key decisions:** `fastify-type-provider-zod` for route validation, `prisma.$transaction([...])` for multi-table writes, soft delete only (no real DELETE exposed), `applyArchivedFilter` helper reused in every list route, one Fastify plugin per entity
 

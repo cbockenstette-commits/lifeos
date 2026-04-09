@@ -1,0 +1,42 @@
+{
+  "artifact_type": "plan_review",
+  "created_at": "2026-04-09T02:11:55.695523+00:00",
+  "transport": "codex-cli",
+  "script": "gpt_plan.py",
+  "input_files": [
+    "current_goal.md",
+    "current_scope.md",
+    "next_task.md",
+    "open_risks.md",
+    "approval_gates.md"
+  ],
+  "dry_run": false,
+  "response": {
+    "status": "approve",
+    "summary": "The proposed next task is the correct priority after P0 because the rest of the system depends on a stable database contract, migration baseline, and seed path. P1 is well-bounded, aligns with the locked ADRs, and includes the right guardrail focus for raw-SQL drift, which is the main execution risk at this stage. The task is safe to proceed as long as the schema implementation preserves the archive-only lifecycle and the task ownership/XOR rules exactly as specified.",
+    "key_risks": [
+      "Prisma-generated migrations will not preserve the required CHECK constraints and partial indexes unless the raw SQL is re-appended deliberately.",
+      "The Task ownership rule is easy to implement incorrectly because the true-XOR constraint must coexist with task hierarchy and sprint assignment semantics.",
+      "Polymorphic tables can silently lose integrity guarantees if create-path existence checks and constraint tests are deferred beyond P1.",
+      "Schema/Zod parity risk remains downstream if P1 column names or nullability choices are made without preserving the planned shared-schema contract."
+    ],
+    "blocking_issues": [],
+    "confidence": "high",
+    "recommended_next_step": "Proceed with P1 by implementing `schema.prisma`, generating the init migration, appending the canonical raw SQL block, then adding the metadata-based constraint/index guardrail test before starting P2.",
+    "acceptance_checks": [
+      "`pnpm --filter api prisma migrate dev --name init` applies cleanly against the local Postgres instance.",
+      "`pnpm --filter api prisma db seed` inserts exactly one user row and no duplicate seed rows on a clean database.",
+      "`pg_constraint` confirms `task_parent_xor`, `sprint_week_check`, `entity_link_no_self`, and `entity_link_relation_check` exist.",
+      "`pg_indexes` confirms all four archive partial indexes exist and each predicate contains `archived_at IS NULL`.",
+      "The Prisma schema includes all nine planned models with the locked enum scopes, especially `EntityType` excluding `sprint`.",
+      "A dedicated schema-constraints test passes and fails loudly if any raw SQL constraint or partial index is missing."
+    ],
+    "open_questions": [
+      "Should `EntityLink.user_id` also be declared as a Prisma relation to `User`, or is a scalar-only column intentional for v1?",
+      "Where will `schema-constraints.test.ts` live in the repo structure during P1 so it runs before broader P2 test work begins?",
+      "Should the seed be explicitly idempotent, or is the acceptance contract limited to clean-database seeding only?"
+    ],
+    "review_tier_confirmation": "C",
+    "approve_or_revise": "approve"
+  }
+}
