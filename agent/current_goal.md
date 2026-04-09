@@ -2,76 +2,84 @@
 
 Build a personal life-management web app at `~/Documents/lifeos/` combining Tiago Forte's PARA method with Scrum-style weekly sprints.
 
-**Phase:** P7 Tags + References — **COMPLETE**, awaiting Codex tier C phase-end review.
-**Next:** P8 Polish (README, ARCHITECTURE.md with ER diagram + polymorphism trade-off + schema evolution recipe + add-entity recipe + JWT bolt-on recipe, empty-state polish, loading skeletons, error boundary, root pnpm scripts, v1 done).
+**Phase:** P8 Polish — **COMPLETE**. **v1 DONE.**
 
-## P7 completion evidence
+## P8 completion evidence
 
-### Backend — polymorphic hydrator
-- `apps/api/src/services/hydrate.ts` — `hydrateEntities(prisma, userId, refs, options)`:
-  - Groups refs by type
-  - Fires ONE `findMany({ where: { id: { in: [...] } } })` per distinct type
-  - Returns compact display cards: `{ type, id, title, archived_at, secondary, color }`
-  - Default filters archived entities; `includeArchived=true` opts out
-- `packages/shared/src/schemas/hydrated.ts` — `HydratedEntitySchema`, `TagEntitiesSchema`, `HydratedLinkEdgeSchema`, `HydratedLinksSchema`
+### Root `pnpm` scripts
+- `pnpm dev` — runs API + web in parallel, verified end-to-end via curl ✅
+- `pnpm bootstrap` expanded to do docker up + install + migrate deploy + seed in one command
+- Added `pnpm db:migrate`, `pnpm db:seed`, `pnpm db:studio` convenience aliases
 
-### New endpoints
-- `GET /api/tags/:id/entities` — returns `{ area, project, task, resource }` with hydrated entities for that tag
-- `GET /api/entity-links/hydrated?entity_type=X&entity_id=Y` — returns `{ outgoing, incoming }` with each edge's other-end entity hydrated in a single response. Both directions fetched in parallel; one hydrator call for all targets; O(1) Map lookup to match edges to their hydrated entities. **No N+1.**
+### ARCHITECTURE.md
+- System overview, ER diagram (text format with field table)
+- ADR-1/2 polymorphism trade-off (why not per-pair, why not graph DB, how we compensate)
+- ADR-3 archive-only lifecycle (partial indexes, implications for polymorphic integrity)
+- ADR-7 auth-ready architecture (1-line JWT swap)
+- ADR-8 sprint dates + timezones (DATE not TIMESTAMPTZ, shared helpers, browser auto-detect)
+- Schema evolution recipe (step-by-step process for new migrations)
+- **Canonical raw SQL block** — copy-paste ready (5 CHECK constraints + 4 partial indexes)
+- Add-new-entity recipe (v2 touchpoint checklist)
+- JWT bolt-on recipe (exact steps for replacing auth-stub.ts)
+- Testing architecture notes + dev environment quirks
 
-### Backend — integrity test (P7 guardrail)
-- `apps/api/tests/integrity.test.ts` — **4 tests**:
-  - Clean DB: zero orphans in both `entity_links` and `entity_tags`
-  - After normal create → link → tag flow: still zero orphans
-  - After archive (soft delete): still zero orphans (archive ≠ delete per ADR-3)
-  - After raw SQL hard-delete of a referenced area: orphan count ≥ 1 — proves the guard fires when someone tampers
+### README.md rewritten
+- Full feature summary, prerequisites, 5-command fresh-clone setup (`clone` → `corepack enable` → `cp .env` → `pnpm bootstrap` → `pnpm dev`)
+- 14-step daily demo walkthrough exercising every v1 capability
+- Test running instructions including first-run test DB creation
+- Project layout diagram, scripts reference table, security note, development quirks
 
-### Frontend hooks
-- `hooks/use-tags.ts` — `useTags`, `useTag`, `useTagEntities`, `useCreateTag`, `useUpdateTag`, `useDeleteTag`, `useAttachTag`, `useDetachTag`, `useEntityTags` (for "tags on this entity X")
-- `hooks/use-backlinks.ts` — `useBacklinks` (hydrated), `useCreateEntityLink`, `useDeleteEntityLink`
-- All mutations invalidate `['tags', ...]` and `['backlinks']` query keys
+### DST boundary unit tests (Risk #4 mitigation)
+- 4 new tests in `tests/services.current-sprint.test.ts`:
+  - `startOfSprint` stable across 2026-03-08 (US DST start Sunday)
+  - `startOfSprint` stable across 2026-11-01 (US DST end Sunday)
+  - `todayInTz` returns same calendar date on both sides of DST transitions
+  - `getOrCreateCurrentSprint` with fake clock on DST-boundary Sunday creates correct sprint
 
-### Frontend components
-- `components/tags/tag-chip.tsx` — pill with color dot + optional remove button + Link to `/tags/:id`
-- `components/tags/tag-picker.tsx` — combobox input with create-on-enter, exact-match-detection, suggestion list, inline chip remove
-- `components/links/entity-badge.tsx` — type badge + title + archived strike-through + optional remove button; uses type-specific color classes (emerald/blue/amber/purple for area/project/task/resource)
-- `components/links/link-picker.tsx` — modal with type dropdown + search input + filtered list; client-side self-link exclusion
-- `components/links/backlinks-panel.tsx` — "References" card with "Links to" (outgoing) and "Referenced by" (incoming) sections, inline + Link button to open the picker
+### Error boundary
+- `apps/web/src/components/error-boundary.tsx` — React class-component error boundary
+- Fallback UI with collapsible stack trace + "Try again" + "Reload page" buttons
+- Wired into `PageShell` around `<Outlet />` — crashed pages contained without blanking the shell
 
-### Wired into all 4 entity detail pages
-- `area-detail-page.tsx` — Tags section (`<TagPicker entity_type="area" entity_id={a.id} />`) + `<BacklinksPanel />`
-- `project-detail-page.tsx` — same pattern
-- `task-detail-page.tsx` — same pattern
-- `resource-detail-page.tsx` — same pattern
-- Every detail page now has both tagging and bidirectional linking
+### Dashboard loading skeletons
+- `apps/web/src/components/dashboard/skeleton.tsx` — `DashboardSkeleton` with animated-pulse placeholder widgets matching the real 3-column grid
+- No layout shift on first load
 
-### New pages
-- `tags-page.tsx` — rewritten from placeholder: list of tag chips clickable to detail, "+ New tag" modal with react-hook-form + zodResolver
-- `tag-detail-page.tsx` — NEW: `#tagname` header, 4 sections (Areas / Projects / Tasks / Resources) each rendering `<EntityBadge />` rows, total count, delete-tag button with confirm dialog. **Satisfies demo script step 15**: "click tag chip to see all linked entities grouped by type"
+### Final verification
+- **93/93 backend tests passing** (was 89; +4 DST) ✅
+- **14/14 frontend tests passing** ✅
+- **`pnpm -r typecheck` clean** across 3 workspaces ✅
+- **`pnpm dev` from repo root** verified end-to-end: API `/api/health` direct + via Vite proxy, `/` index.html, `/api/dashboard` via proxy ✅
 
-### Routes
-- `App.tsx` adds `/tags/:id` route for tag detail page
+## v1 Acceptance — every Codex P7 criterion satisfied
+- ✅ `pnpm dev` starts both API and web, app reachable at http://127.0.0.1:5173
+- ✅ `pnpm test` exits 0 across all workspaces
+- ✅ `pnpm typecheck` exits 0 across all workspaces
+- ✅ `README.md` reproduces first-run local setup from fresh clone
+- ✅ `ARCHITECTURE.md` includes all 6 required sections
+- ✅ Every list/detail surface with zero data shows an intentional empty state
+- ✅ Dashboard loading states render skeletons; render failures contained by layout-level error boundary
+- ✅ The 14-step v1 demo script (README) exercises every feature
 
-### Tests
-- **Backend** `tests/integrity.test.ts` — 4 tests (described above), **89/89** total backend tests passing (was 85; +4)
-- **Frontend** `src/tests/backlinks-panel.test.tsx` — **2 tests**:
-  - Renders hydrated outgoing + incoming edges with real data
-  - Shows empty state on zero edges
-  - Uses `mockImplementation` with a URL-aware factory to return fresh `Response` objects per call (`mockResolvedValue` of a single shared Response failed because `Response.body` is a one-shot stream and the LinkPicker's eager useAreas/useProjects/useTasks/useResources queries consumed it first)
+## v1 feature set shipped across P0-P8
 
-### Verification
-- `pnpm -r typecheck` clean ✅
-- **Backend: 89/89 tests passing** (was 85; +4 integrity)
-- **Frontend: 14/14 tests passing** (was 12; +2 backlinks)
+- PARA CRUD: Areas, Projects (with hierarchy), Tasks (XOR parent + subtasks), Resources
+- Archive-only lifecycle with `?includeArchived=true` toggle + explicit unarchive
+- Weekly sprints with find-or-create `/api/sprints/current`
+- Kanban board with dnd-kit, 5 columns, keyboard-accessible, optimistic updates
+- Sprint planning view with backlog ↔ sprint assignment, capacity sum, area balance
+- Dashboard aggregator: single endpoint, 6 widgets, single React Query call, TZ-aware
+- Polymorphic tags across all 4 entity types + tag detail grouped by type
+- Bidirectional references via polymorphic `entity_links` + backlinks panel on every detail page
+- Eisenhower prioritization with `priority_score` future-model slot
+- Timezone-aware with browser auto-detect
+- Auth-ready single-user architecture (1-line JWT swap documented)
+- Integrity guardrail (tests/integrity.test.ts) proving zero orphans
+- Schema constraints guardrail (tests/schema-constraints.test.ts) detecting raw SQL drift
+- Error boundary + loading skeletons
+- Root `pnpm` scripts for one-command setup
 
-### Codex P6 advisory coverage
-- ✅ Polymorphic hydrator is batched by type (≤N queries for N distinct types)
-- ✅ Backlinks endpoint returns single round-trip with hydrated data
-- ✅ Tag detail satisfies demo step 15 (grouped by type)
-- ✅ Archive-only lifecycle honored (link/tag rows persist through entity archive)
-- ✅ Integrity test proves orphans can only come from manual tampering
-
-### Deviation log (P7)
-1. **`useEntityTags` hook is O(tag_count)** — fetches all tags and per-tag entities to compute "which tags are attached to this entity". Acceptable at v1 single-user scale. A dedicated `GET /api/entities/{type}/{id}/tags` endpoint would be the optimization; deferred to a refinement phase.
-2. **Client-side self-link exclusion** in `LinkPicker` because the server already has a CHECK constraint but the picker should never offer self as a target anyway.
-3. **`mockImplementation` with URL factory** in the backlinks test instead of `mockResolvedValue` — necessary because Response body streams are single-consumption and the LinkPicker's sibling hooks fire first.
+**Totals:**
+- 93 backend integration tests + 14 frontend smoke tests = **107 tests passing**
+- 3 workspaces, typecheck clean
+- P0 → P1 → P2 → P3 → P4 → P5 → P6 → P7 → P8 all committed and pushed to origin/main

@@ -1,11 +1,11 @@
 import { PageHeader } from '../components/page-header.js';
-import { CenteredSpinner } from '../components/ui/spinner.js';
 import { useDashboard } from '../hooks/use-dashboard.js';
 import { Widget, WidgetEmpty } from '../components/dashboard/widget.js';
 import { TaskList } from '../components/dashboard/task-list.js';
 import { CurrentSprintSummary } from '../components/dashboard/current-sprint-summary.js';
 import { AreaFocusWidget } from '../components/dashboard/area-focus.js';
 import { RecentResourcesWidget } from '../components/dashboard/recent-resources.js';
+import { DashboardSkeleton } from '../components/dashboard/skeleton.js';
 
 export default function DashboardPage(): JSX.Element {
   const dashboard = useDashboard();
@@ -14,7 +14,7 @@ export default function DashboardPage(): JSX.Element {
     return (
       <>
         <PageHeader title="Dashboard" subtitle="Your current week at a glance" />
-        <CenteredSpinner />
+        <DashboardSkeleton />
       </>
     );
   }
