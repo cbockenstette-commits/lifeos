@@ -1,15 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { HEALTH_CHECK_NAME } from '@lifeos/shared';
-import App from './App';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter } from 'react-router-dom';
+import { createQueryClient } from './api/mutations.js';
+import App from './App.js';
 import './index.css';
 
-// P0 workspace-resolution proof: HEALTH_CHECK_NAME is imported from
-// @lifeos/shared without any build step. If this type-checks and renders
-// the correct value at runtime, the pnpm workspace plumbing is wired
-// correctly and P1 can safely depend on this import pattern for Zod
-// schemas and sprint date helpers.
-console.log(`[lifeos] shared package resolved: ${HEALTH_CHECK_NAME}`);
+const queryClient = createQueryClient();
 
 const rootEl = document.getElementById('root');
 if (!rootEl) {
@@ -18,6 +15,10 @@ if (!rootEl) {
 
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
-    <App />
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </QueryClientProvider>
   </React.StrictMode>,
 );

@@ -40,12 +40,16 @@ export async function buildApp() {
   await app.register(prismaPlugin);
   await app.register(authStubPlugin);
 
-  // Liveness probe (no prefix, no auth coupling).
-  app.get('/health', async () => ({
+  // Liveness probe. Mounted at both /health (for ops tooling / direct curl)
+  // and /api/health (so the Vite dev proxy at /api/* can reach it without
+  // a special case).
+  const healthHandler = async () => ({
     status: 'ok',
     service: HEALTH_CHECK_NAME,
     timestamp: new Date().toISOString(),
-  }));
+  });
+  app.get('/health', healthHandler);
+  app.get('/api/health', healthHandler);
 
   // Entity routes.
   await app.register(usersRoutes, { prefix: '/api/users' });

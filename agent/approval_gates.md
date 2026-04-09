@@ -45,6 +45,18 @@
 - Archive-only lifecycle: every DELETE route sets `archived_at`, row remains in DB ✅
 - **Pending:** Codex tier C phase-end review + commit + push
 
+## End of P3 (frontend shell complete) — 2026-04-08
+- `pnpm -r typecheck` clean across 3 workspaces ✅
+- Vite dev server starts on 127.0.0.1:5173 and serves index.html ✅
+- Client-side routing works (no page reload between nav items, via React Router) ✅
+- Vite proxy reaches backend via `/api/*` — verified with curl on `/api/health`, `/api/users/me` ✅
+- `@lifeos/shared` workspace import used for real types (`User`, `UserUpdate`), not just placeholders ✅
+- `apps/web/src/api/mutations.ts` exports `invalidateDashboard()` as the canonical helper ✅
+- Zustand UI store contains only UI-local state (sidebarOpen + activeModal) ✅
+- Tailwind active in the rendered shell ✅
+- ADR-8 browser timezone auto-detect wired in `useCurrentUser` hook ✅
+- **Pending:** Codex tier C phase-end review + commit + push
+
 ## End of P5 (Kanban complete)
 - Demo script steps 9-11 work interactively (drag across columns, reload persistence)
 - Keyboard-only drag works (a11y smoke test)

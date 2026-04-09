@@ -1,0 +1,47 @@
+{
+  "artifact_type": "plan_review",
+  "created_at": "2026-04-09T02:55:54.196666+00:00",
+  "transport": "codex-cli",
+  "script": "gpt_plan.py",
+  "input_files": [
+    "current_goal.md",
+    "current_scope.md",
+    "next_task.md",
+    "open_risks.md",
+    "approval_gates.md"
+  ],
+  "dry_run": false,
+  "response": {
+    "status": "approve",
+    "summary": "P4 is the correct next phase after the shell and routing work in P3. It is well-bounded around the first real user-facing PARA CRUD flows, aligns with the locked stack and ADRs, and uses foundations already put in place in P2-P3. The main execution risks are around keeping form schemas and list/detail behaviors consistent across four entity types, but those risks are known and manageable without replanning.",
+    "key_risks": [
+      "List/detail/create-edit/archive is being delivered for four entities at once, which raises the chance of uneven behavior or one entity lagging behind the others.",
+      "Using shared Zod schemas across API and forms can still drift in practice if create/update form needs are not clearly separated from response schemas.",
+      "URL-param sort/filter can become inconsistent across Areas, Projects, Tasks, and Resources unless parameter names and defaults are standardized up front.",
+      "Project hierarchy introduces extra UI and query complexity inside the same phase, especially if expandable tree behavior is treated as part of the MVP surface.",
+      "Inline validation parity between server errors and react-hook-form errors may be awkward unless error mapping is normalized early."
+    ],
+    "blocking_issues": [],
+    "confidence": "high",
+    "recommended_next_step": "Proceed with P4, but define one shared contract first for query params, archive-toggle behavior, and form error mapping before implementing the four entity flows.",
+    "acceptance_checks": [
+      "Create, list, detail, edit, and archive all work end-to-end for Areas against the real backend.",
+      "Create, list, detail, edit, and archive all work end-to-end for Projects against the real backend, including parent/child display if hierarchy is exposed.",
+      "Create, list, detail, edit, and archive all work end-to-end for Tasks against the real backend.",
+      "Create, list, detail, edit, and archive all work end-to-end for Resources against the real backend.",
+      "Archived entities are hidden by default and become visible only when the archived toggle is enabled.",
+      "Sort and filter state persists in the URL and survives refresh/navigation for every implemented list view.",
+      "Forms use shared Zod-backed validation and surface inline errors for invalid submissions.",
+      "`pnpm -r typecheck` passes after P4 changes.",
+      "At least one RTL smoke test covers a P4 list/form flow and passes."
+    ],
+    "open_questions": [
+      "Are dedicated create/update form schemas already available in `packages/shared`, or will P4 need to introduce them alongside the pages?",
+      "What exact URL search-param names and default sort orders should be standardized across the four list views?",
+      "Is project hierarchy rendering in P4 limited to read-only expansion, or does this phase also include re-parenting from the UI?",
+      "Should archive actions be exposed as DELETE calls only, or is there also an explicit unarchive path expected in P4?"
+    ],
+    "review_tier_confirmation": "C",
+    "approve_or_revise": "approve"
+  }
+}

@@ -1,29 +1,27 @@
-import { HEALTH_CHECK_NAME } from '@lifeos/shared';
+import { Routes, Route } from 'react-router-dom';
+import { PageShell } from './components/layout/page-shell.js';
+import DashboardPage from './pages/dashboard-page.js';
+import AreasPage from './pages/areas-page.js';
+import ProjectsPage from './pages/projects-page.js';
+import TasksPage from './pages/tasks-page.js';
+import ResourcesPage from './pages/resources-page.js';
+import SprintsPage from './pages/sprints-page.js';
+import TagsPage from './pages/tags-page.js';
+import NotFoundPage from './pages/not-found-page.js';
 
 export default function App(): JSX.Element {
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto max-w-3xl px-6 py-16">
-        <h1 className="text-4xl font-bold tracking-tight">lifeos</h1>
-        <p className="mt-4 text-lg text-slate-600">
-          Personal life management — PARA + weekly sprints.
-        </p>
-        <div className="mt-8 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            P0 scaffolding status
-          </h2>
-          <dl className="mt-4 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-slate-600">Shared package resolved</dt>
-              <dd className="font-mono text-emerald-600">{HEALTH_CHECK_NAME}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-600">API health check</dt>
-              <dd className="font-mono text-slate-400">/api/health</dd>
-            </div>
-          </dl>
-        </div>
-      </div>
-    </main>
+    <Routes>
+      <Route element={<PageShell />}>
+        <Route index element={<DashboardPage />} />
+        <Route path="areas" element={<AreasPage />} />
+        <Route path="projects" element={<ProjectsPage />} />
+        <Route path="tasks" element={<TasksPage />} />
+        <Route path="resources" element={<ResourcesPage />} />
+        <Route path="sprints" element={<SprintsPage />} />
+        <Route path="tags" element={<TagsPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
+    </Routes>
   );
 }
