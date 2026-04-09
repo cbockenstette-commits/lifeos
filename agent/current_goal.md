@@ -2,36 +2,72 @@
 
 Build a personal life-management web app at `~/Documents/lifeos/` combining Tiago Forte's PARA method with Scrum-style weekly sprints.
 
-**Phase:** P1 Schema + Migrations — **COMPLETE**, awaiting Codex tier C phase-end review.
-**Next:** P2 Backend CRUD + API (Fastify plugins, route modules per entity, Zod schemas in packages/shared, API integration tests against real Postgres test DB).
+**Phase:** P2 Backend CRUD + API — **COMPLETE**, awaiting Codex tier C phase-end review.
+**Next:** P3 Frontend shell + routing (React Router, layout shell, React Query provider, `apps/web/src/api/mutations.ts` with `invalidateDashboard()`, Tailwind, Zustand UI-only store, typed API client).
 
-## P1 completion evidence
+## P2 completion evidence
 
-- `apps/api/prisma/schema.prisma` — 9 models (User, Area, Project, Task, Resource, Sprint, Tag, EntityTag, EntityLink) + 5 enums (TaskStatus, SprintStatus, ProjectStatus, EntityType with 4 values (no sprint), ResourceKind). `EntityType` explicitly excludes `sprint` per ADR-1.
-- `apps/api/prisma/migrations/20260409022616_init/migration.sql` — Prisma-generated, then hand-appended raw SQL block containing:
-  - `task_parent_xor` CHECK: `(project_id IS NULL) <> (area_id IS NULL)` (true XOR)
-  - `sprint_week_check` CHECK: `end_date = start_date + INTERVAL '6 days'`
-  - `entity_link_no_self` CHECK
-  - `entity_link_relation_check` CHECK (relation_type ∈ references/blocks/depends_on; `parent_of` intentionally absent)
-  - 4 partial indexes `WHERE archived_at IS NULL` on Area, Project, Task, Resource
-- Migration applied cleanly with `prisma migrate dev`.
-- `apps/api/src/config.ts` — exports `LOCAL_USER_ID = '00000000-0000-0000-0000-000000000001'`, `LOCAL_USER_EMAIL`, `LOCAL_USER_NAME`, `DEFAULT_TIMEZONE = 'America/Boise'`.
-- `apps/api/prisma/seed.ts` — idempotent upsert of the local user. Verified: exactly 1 row in `User` table after seed, `timezone = 'America/Boise'`.
-- `apps/api/tests/schema-constraints.test.ts` — **12 tests passing**. Asserts:
-  - All 4 CHECK constraints exist in `pg_constraint` with expected definitions
-  - All 4 partial indexes exist in `pg_indexes` with `archived_at IS NULL` predicate
-  - Constraints are ENFORCED against real inserts (neither-nor task → rejected, bad sprint duration → rejected, self-link → rejected, unknown relation_type → rejected)
-- Prisma client generated; `pnpm -r typecheck` passes across all 3 workspaces.
-- Vitest 2.x pinned (Vitest 4 wants Vite 6+, apps/web uses Vite 5).
+### Shared package (`packages/shared`)
+- `enums.ts` — TaskStatusSchema, SprintStatusSchema, ProjectStatusSchema, EntityTypeSchema (4 values, no sprint), ResourceKindSchema, RelationTypeSchema
+- `schemas/common.ts` — UuidSchema, DateStringSchema, TimestampSchema (union of string|Date, no transform), TimezoneSchema (IANA validator), ColorSchema, EisenhowerScoreSchema, ListQuerySchema
+- `schemas/user.ts` — UserSchema, UserUpdateSchema (require at least one of name/timezone)
+- `schemas/area.ts` — AreaSchema, AreaCreateSchema, AreaUpdateSchema
+- `schemas/project.ts` — ProjectSchema, ProjectCreateSchema, ProjectUpdateSchema
+- `schemas/task.ts` — TaskSchema, TaskCreateSchema (with XOR refine), TaskUpdateSchema + `validateTaskParentXor` helper
+- `schemas/resource.ts` — ResourceSchema, ResourceCreateSchema, ResourceUpdateSchema
+- `schemas/sprint.ts` — SprintSchema, SprintCreateSchema, SprintUpdateSchema + pure week helpers (`startOfSprint`, `endOfSprint`, `todayInTz`)
+- `schemas/tag.ts` — TagSchema, TagCreateSchema, TagAttachSchema, EntityTagSchema
+- `schemas/entity-link.ts` — EntityLinkSchema, EntityLinkCreateSchema (with self-link refine), EntityRefSchema
 
-## Deviation log (P1)
+### API plugins (`apps/api/src/plugins/`)
+- `prisma.ts` — decorates `app.prisma`, `onClose` disconnect hook
+- `error-handler.ts` — maps ZodError/FastifyError/Prisma errors to consistent `{error:{code,message,details?}}` shape; routes 422/404/409 correctly
+- `auth-stub.ts` — preHandler sets `req.user = { id: LOCAL_USER_ID }` (the 1-line JWT swap surface)
 
-1. **Prisma 7 → Prisma 6.19.3 downgrade** — Prisma 7 removed inline `datasource.url` in `schema.prisma` and requires `prisma.config.ts` + a separate connection adapter package. Significant complexity increase for no v1 benefit. Downgraded to Prisma 6 which matches the plan's assumptions.
-2. **`.env` symlink `apps/api/.env → ../../.env`** — monorepo pattern; Prisma CLI finds env vars via schema-relative `.env` lookup. Avoids duplicating secrets.
-3. **Custom Prisma client `output` path removed from schema.prisma** — the custom `output = "../node_modules/.prisma/client"` broke under pnpm because `@prisma/client` resolves its generated client via the pnpm virtual store, not the app-local `node_modules`. Let Prisma use its default location; everything works.
-4. **Vitest 2.x (not 4.x)** — peer dep compat with Vite 5 (apps/web).
+### Services (`apps/api/src/services/`)
+- `archive.ts` — `applyArchivedFilter(where, query)` helper used by every list route
+- `current-sprint.ts` — `getOrCreateCurrentSprint` with race-safe find-or-create
+- `entity-links.ts` — `assertEntityExists(prisma, userId, type, id)` polymorphic existence guard
 
-## Deviations retained from P0
+### Routes (`apps/api/src/routes/`)
+- `users.ts` — `GET /api/users/me`, `PATCH /api/users/me` (name + timezone; supports ADR-8 browser auto-detect)
+- `areas.ts` — full CRUD + archive, owner-scoped
+- `projects.ts` — full CRUD + archive + filter by area/status
+- `tasks.ts` — full CRUD + archive + XOR re-check on PATCH + priority_score recompute on urgency/importance change
+- `resources.ts` — full CRUD + archive
+- `sprints.ts` — full CRUD + `GET /api/sprints/current` find-or-create + server-computed `end_date`
+- `tags.ts` — CRUD + `/attach` + `/detach` + hard-delete (cascades entity_tags)
+- `entity-links.ts` — `GET` with `direction=outgoing|incoming|both`, `POST` with existence checks, hard-delete
+- `dashboard.ts` — stub returning empty shape (full aggregator lands in P6)
 
-1. Postgres port 5432 → 5433 (`.env` override)
-2. File-watcher polling mode (inotify instance limit workaround)
+### Tests (70/70 passing, 11 files)
+- `tests/setup.ts` — dotenv load, swap DATABASE_URL → DATABASE_URL_TEST before any Prisma import
+- `tests/helpers/reset.ts` — TRUNCATE all tables CASCADE + re-seed LOCAL_USER
+- `tests/helpers/app.ts` — reusable makeTestApp() invoking production buildApp()
+- `tests/routes.users.test.ts` — 4 tests (GET me, PATCH with name/tz, invalid tz 422, empty body 422)
+- `tests/routes.areas.test.ts` — 7 tests (CRUD, archive filter, includeArchived, 404, validation)
+- `tests/routes.projects.test.ts` — 4 tests (create, validation, area_id filter, archive)
+- `tests/routes.tasks.test.ts` — 7 tests (project-parent, area-parent, XOR on create, XOR on patch, priority_score recompute, archive)
+- `tests/routes.resources.test.ts` — 3 tests (create url, bad url 422, archive)
+- `tests/routes.sprints.test.ts` — 5 tests (create, find-or-create idempotent, Sunday math, PATCH status)
+- `tests/routes.tags.test.ts` — 4 tests (create, attach+detach polymorphic, 404 on bad target, hard delete cascades)
+- `tests/routes.entity-links.test.ts` — 6 tests (create, source 404, target 404, self-link 422, bad relation 422, direction=both)
+- `tests/services.current-sprint.test.ts` — 4 tests (create new, idempotent, Sunday math, todayInTz)
+- `tests/schema-parity.test.ts` — 14 tests (Prisma ↔ Zod field presence for every model)
+- `tests/schema-constraints.test.ts` — 12 tests (from P1, still passing)
+
+### Infrastructure
+- Fastify 5 with `fastify-type-provider-zod@4` (validator+serializer compilers)
+- `@fastify/sensible` registered for HTTP error helpers
+- `dotenv` for test env loading (symlinked `.env` from repo root)
+- Vitest 2.x with `setupFiles` swapping DATABASE_URL to the test DB before any Prisma import
+- Single-fork test runner so TRUNCATE doesn't stomp on parallel writes
+- `lifeos_test` database created and migrated on `127.0.0.1:5433`
+
+### Deviation log (P2)
+
+1. **Zod timestamp schemas do not use `.transform()`** — original plan had transforms to coerce Date → ISO string, but fastify-type-provider-zod uses the schema's OUTPUT type for handler return-type checking, and the transform forced handlers to return strings while Prisma returns Date objects. Simpler fix: `z.union([z.string(), z.date()])` with no transform. JSON.stringify handles Date→ISO at serialization time naturally. Documented in `packages/shared/src/schemas/common.ts`.
+2. **`LOCAL_USER_EMAIL` changed `me@local` → `me@lifeos.local`** — `me@local` failed Zod's `.email()` validator (no TLD). Updated config.ts and seed.
+3. **`relation_type` cast in entity-links route** — Prisma stores the column as `string` (since the whitelist is enforced via raw SQL CHECK, not a Prisma enum), but Zod response schema uses the literal union. Added a `toEntityLink` mapper that casts the Prisma row to the stricter type.
+4. **Task PATCH XOR error throws instead of reply.code(422)** — the route schema only allows the 200 response shape, so returning a different shape via `reply.code(422).send(...)` fails TS. Throwing a validation-shaped Error is cleaner because it goes through the global error handler.
+5. **`packages/shared/package.json` gained a direct zod dependency** (auto-added by pnpm).

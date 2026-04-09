@@ -32,9 +32,18 @@
 - `pnpm -r typecheck` passes across 3 workspaces ✅
 - **Pending:** Codex tier C phase-end review
 
-## End of P2 (backend CRUD complete)
-- All API integration tests green against real Postgres test DB
-- `tests/schema-parity.test.ts` passes
+## End of P2 (backend CRUD complete) — 2026-04-08
+- 70/70 tests passing across 11 test files in 17s ✅
+- `pnpm -r typecheck` clean across 3 workspaces ✅
+- Every HTTP status class covered: 200/201/204/404/409/422 ✅
+- Task XOR enforced at Zod create, route PATCH re-check, and DB CHECK constraint ✅
+- `schema-parity.test.ts` asserts every Prisma scalar column is present on the corresponding Zod response/create schemas ✅
+- `schema-constraints.test.ts` still passes (12 tests) ✅
+- `GET /api/sprints/current` idempotency proven (2 calls → 1 row) ✅
+- Entity-links polymorphic existence check rejects bad source AND bad target with 404 ✅
+- Tag attach/detach across multiple entity types with cascade on tag delete ✅
+- Archive-only lifecycle: every DELETE route sets `archived_at`, row remains in DB ✅
+- **Pending:** Codex tier C phase-end review + commit + push
 
 ## End of P5 (Kanban complete)
 - Demo script steps 9-11 work interactively (drag across columns, reload persistence)

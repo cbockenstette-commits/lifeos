@@ -9,6 +9,6 @@
 // the seed with a different ID, update this constant to match.
 
 export const LOCAL_USER_ID = '00000000-0000-0000-0000-000000000001' as const;
-export const LOCAL_USER_EMAIL = 'me@local' as const;
+export const LOCAL_USER_EMAIL = 'me@lifeos.local' as const;
 export const LOCAL_USER_NAME = 'Me' as const;
 export const DEFAULT_TIMEZONE = 'America/Boise' as const;

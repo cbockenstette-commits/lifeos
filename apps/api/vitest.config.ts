@@ -6,8 +6,10 @@ export default defineConfig({
     environment: 'node',
     globals: false,
     testTimeout: 30000,
-    // Run tests serially so they don't stomp on each other's DB state.
-    // v1 test volume doesn't justify the complexity of parallel test DBs.
+    // setupFiles runs BEFORE any test module loads — used to swap
+    // DATABASE_URL to the test DB before Prisma client initializes.
+    setupFiles: ['./tests/setup.ts'],
+    // Run tests serially so TRUNCATE doesn't stomp on parallel writes.
     fileParallelism: false,
     pool: 'forks',
     poolOptions: {
